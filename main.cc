@@ -1,13 +1,10 @@
-#include "dft2.h"
 #include "fft2.h"
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
 
 #include <format>
-#include <fstream>
 #include <iostream>
 #include <string>
-#include <vector>
 
 constexpr int GRAYSCALE = 1;
 constexpr double DEFAULT_RATIO = 0.1;
@@ -24,7 +21,7 @@ int main(int argc, char *argv[]) {
   double ratio = DEFAULT_RATIO;
   if (argc == 4) {
     try {
-      ratio = std::stof(argv[3]);
+      ratio = std::stod(argv[3]);
       if (ratio < 0 || ratio > 1) {
         throw std::invalid_argument("Ratio must be in [0, 1]\n");
       }

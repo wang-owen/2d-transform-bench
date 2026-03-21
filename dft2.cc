@@ -10,46 +10,66 @@ namespace dft2 {
 namespace internal {
 
 void dft2(std::vector<std::complex<double>> &data, int N, int M) {
-  const std::complex<double> Wn =
+  const std::complex<double> W_N =
       std::exp(std::complex<double>(0, -2.0 * std::numbers::pi / N));
-  const std::complex<double> Wm =
+  const std::complex<double> W_M =
       std::exp(std::complex<double>(0, -2.0 * std::numbers::pi / M));
 
   const auto input = data;
 
+  std::complex<double> W_N_step = 1.0;
   for (int k = 0; k < N; ++k) {
+    std::complex<double> W_M_step = 1.0;
+
     for (int l = 0; l < M; ++l) {
+      std::complex<double> W_N_cur = 1.0;
       std::complex<double> F = 0;
+
       for (int n = 0; n < N; ++n) {
-        const auto Wnk = std::pow(Wn, n * k);
+        std::complex<double> W_M_cur = 1.0;
+
         for (int j = 0; j < M; ++j) {
-          F += input[n * M + j] * Wnk * std::pow(Wm, j * l);
+          F += input[n * M + j] * W_M_cur * W_N_cur;
+          W_M_cur *= W_M_step;
         }
+        W_N_cur *= W_N_step;
       }
+      W_M_step *= W_M;
       data[k * M + l] = F;
     }
+    W_N_step *= W_N;
   }
 }
 
 void idft2(std::vector<std::complex<double>> &data, int N, int M) {
-  const std::complex<double> Wn =
+  const std::complex<double> W_N =
       std::exp(std::complex<double>(0, 2.0 * std::numbers::pi / N));
-  const std::complex<double> Wm =
+  const std::complex<double> W_M =
       std::exp(std::complex<double>(0, 2.0 * std::numbers::pi / M));
 
   const auto input = data;
 
+  std::complex<double> W_N_step = 1.0;
   for (int n = 0; n < N; ++n) {
+    std::complex<double> W_M_step = 1.0;
+
     for (int j = 0; j < M; ++j) {
+      std::complex<double> W_N_cur = 1.0;
       std::complex<double> f = 0;
+
       for (int k = 0; k < N; ++k) {
-        const auto Wnk = std::pow(Wn, n * k);
+        std::complex<double> W_M_cur = 1.0;
+
         for (int l = 0; l < M; ++l) {
-          f += input[k * M + l] * Wnk * std::pow(Wm, j * l);
+          f += input[k * M + l] * W_N_cur * W_M_cur;
+          W_M_cur *= W_M_step;
         }
+        W_N_cur *= W_N_step;
       }
+      W_M_step *= W_M;
       data[n * M + j] = f / static_cast<double>(N * M);
     }
+    W_N_step *= W_N;
   }
 }
 
@@ -57,20 +77,8 @@ void idft2(std::vector<std::complex<double>> &data, int N, int M) {
 
 void transform(unsigned char *data, int width, int height, int channels,
                double ratio) {
-
-  const auto nextPowerOf2 = [](int v) {
-    --v;
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    ++v;
-    return v;
-  };
-
-  const int N = nextPowerOf2(height);
-  const int M = nextPowerOf2(width);
+  const int N = height;
+  const int M = width;
 
   std::vector<std::complex<double>> img(N * M, 0);
 

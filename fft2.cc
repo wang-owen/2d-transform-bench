@@ -1,8 +1,8 @@
 #include "fft2.h"
 
 #include <algorithm>
+#include <bit>
 #include <cmath>
-#include <functional>
 #include <numbers>
 #include <utility>
 
@@ -59,8 +59,9 @@ void fft_strided_iter(std::vector<std::complex<double>> &data, FFTDir dir,
 
 void fft_strided_recur_(std::vector<std::complex<double>> &data, int direction,
                         size_t start, size_t N, size_t stride, double scale) {
-  if (N <= 1)
+  if (N <= 1) {
     return;
+  }
 
   const auto WN =
       std::exp(std::complex<double>(0, -direction * 2 * std::numbers::pi / N));
@@ -97,34 +98,25 @@ void fft_strided_recur(std::vector<std::complex<double>> &data, FFTDir dir,
 
 void transform(unsigned char *data, int width, int height, int channels,
                double ratio, bool recur) {
-  const auto nextPowerOf2 = [](int v) {
-    --v;
-    v |= v >> 1;
-    v |= v >> 2;
-    v |= v >> 4;
-    v |= v >> 8;
-    v |= v >> 16;
-    ++v;
-    return v;
-  };
-
-  const int N = nextPowerOf2(height);
-  const int M = nextPowerOf2(width);
+  const int N = std::bit_ceil(static_cast<unsigned int>(height));
+  const int M = std::bit_ceil(static_cast<unsigned int>(width));
 
   std::vector<std::complex<double>> img(N * M, 0);
-  for (size_t y = 0; y < height; ++y)
-    for (size_t x = 0; x < width; ++x)
+  for (size_t y = 0; y < height; ++y) {
+    for (size_t x = 0; x < width; ++x) {
       img[y * M + x] = static_cast<double>(data[y * width + x]) / 255.0;
+    }
+  }
 
-  std::function<void(std::vector<std::complex<double>> &, internal::FFTDir,
-                     size_t, size_t, size_t)>
-      fft_ptr =
-          recur ? internal::fft_strided_recur : internal::fft_strided_iter;
+  auto fft_ptr =
+      recur ? internal::fft_strided_recur : internal::fft_strided_iter;
 
-  for (size_t y = 0; y < N; ++y)
+  for (size_t y = 0; y < N; ++y) {
     fft_ptr(img, internal::FFTDir::Forward, y * M, M, 1);
-  for (size_t x = 0; x < M; ++x)
+  }
+  for (size_t x = 0; x < M; ++x) {
     fft_ptr(img, internal::FFTDir::Forward, x, N, M);
+  }
 
   std::vector<double> mags;
   mags.reserve(img.size());
@@ -138,14 +130,18 @@ void transform(unsigned char *data, int width, int height, int channels,
   std::nth_element(mags.begin(), mags.begin() + idx, mags.end());
   const double thresh = mags[idx];
 
-  for (size_t i = 1; i < img.size(); ++i)
-    if (std::abs(img[i]) < thresh)
+  for (size_t i = 1; i < img.size(); ++i) {
+    if (std::abs(img[i]) < thresh) {
       img[i] = 0;
+    }
+  }
 
-  for (size_t y = 0; y < N; ++y)
+  for (size_t y = 0; y < N; ++y) {
     fft_ptr(img, internal::FFTDir::Inverse, y * M, M, 1);
-  for (size_t x = 0; x < M; ++x)
+  }
+  for (size_t x = 0; x < M; ++x) {
     fft_ptr(img, internal::FFTDir::Inverse, x, N, M);
+  }
 
   for (size_t y = 0; y < height; ++y) {
     for (size_t x = 0; x < width; ++x) {
