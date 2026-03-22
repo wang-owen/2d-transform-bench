@@ -12,19 +12,19 @@
 constexpr int GRAYSCALE = 1;
 constexpr double DEFAULT_RATIO = 0.1;
 
-void copyData(const unsigned char *src, unsigned char *dest, int N, int M,
+void copyData(const unsigned char *src, unsigned char *dest, int M, int N,
               int destStride) {
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < M; ++j) {
-      dest[i * destStride + j] = src[i * M + j];
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      dest[i * destStride + j] = src[i * N + j];
     }
   }
 }
 
-bool checkEqual(const unsigned char *data1, const unsigned char *data2, int N,
-                int M, int stride1, int stride2) {
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < M; ++j) {
+bool checkEqual(const unsigned char *data1, const unsigned char *data2, int M,
+                int N, int stride1, int stride2) {
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
       if (data1[i * stride1 + j] != data2[i * stride2 + j]) {
         return false;
       }
@@ -33,10 +33,10 @@ bool checkEqual(const unsigned char *data1, const unsigned char *data2, int N,
   return true;
 }
 
-void printData(std::ostream &out, const unsigned char *data, int N, int M) {
-  for (int i = 0; i < N; ++i) {
-    for (int j = 0; j < M; ++j) {
-      out << static_cast<double>(data[i * M + j]) << " \n"[j == M - 1];
+void printData(std::ostream &out, const unsigned char *data, int M, int N) {
+  for (int i = 0; i < M; ++i) {
+    for (int j = 0; j < N; ++j) {
+      out << static_cast<double>(data[i * N + j]) << " \n"[j == N - 1];
     }
   }
 }
@@ -64,13 +64,13 @@ int main(int argc, char *argv[]) {
   copyData(data, fftData, height, width, width);
   fft2::transform(fftData, width, height, GRAYSCALE, ratio);
 
-  int dftN = std::bit_ceil(static_cast<unsigned int>(height));
-  int dftM = std::bit_ceil(static_cast<unsigned int>(width));
-  auto dftData = new unsigned char[dftN * dftM]();
-  copyData(data, dftData, height, width, dftM);
-  dft2::transform(dftData, dftM, dftN, GRAYSCALE, ratio);
+  int dftM = std::bit_ceil(static_cast<unsigned int>(height));
+  int dftN = std::bit_ceil(static_cast<unsigned int>(width));
+  auto dftData = new unsigned char[dftM * dftN]();
+  copyData(data, dftData, height, width, dftN);
+  dft2::transform(dftData, dftN, dftM, GRAYSCALE, ratio);
 
-  if (checkEqual(fftData, dftData, height, width, width, dftM)) {
+  if (checkEqual(fftData, dftData, height, width, width, dftN)) {
     std::cout << "SUCCESS\n";
   } else {
     std::cout << "FAILURE\n";

@@ -98,24 +98,24 @@ void fft_strided_recur(std::vector<std::complex<double>> &data, FFTDir dir,
 
 void transform(unsigned char *data, int width, int height, int channels,
                double ratio, bool recur) {
-  const int N = std::bit_ceil(static_cast<unsigned int>(height));
-  const int M = std::bit_ceil(static_cast<unsigned int>(width));
+  const int M = std::bit_ceil(static_cast<unsigned int>(height));
+  const int N = std::bit_ceil(static_cast<unsigned int>(width));
 
-  std::vector<std::complex<double>> img(N * M, 0);
+  std::vector<std::complex<double>> img(M * N, 0);
   for (size_t y = 0; y < height; ++y) {
     for (size_t x = 0; x < width; ++x) {
-      img[y * M + x] = static_cast<double>(data[y * width + x]) / 255.0;
+      img[y * N + x] = static_cast<double>(data[y * width + x]) / 255.0;
     }
   }
 
   auto fft_ptr =
       recur ? internal::fft_strided_recur : internal::fft_strided_iter;
 
-  for (size_t y = 0; y < N; ++y) {
-    fft_ptr(img, internal::FFTDir::Forward, y * M, M, 1);
+  for (size_t y = 0; y < M; ++y) {
+    fft_ptr(img, internal::FFTDir::Forward, y * N, N, 1);
   }
-  for (size_t x = 0; x < M; ++x) {
-    fft_ptr(img, internal::FFTDir::Forward, x, N, M);
+  for (size_t x = 0; x < N; ++x) {
+    fft_ptr(img, internal::FFTDir::Forward, x, M, N);
   }
 
   std::vector<double> mags;
@@ -136,16 +136,16 @@ void transform(unsigned char *data, int width, int height, int channels,
     }
   }
 
-  for (size_t y = 0; y < N; ++y) {
-    fft_ptr(img, internal::FFTDir::Inverse, y * M, M, 1);
+  for (size_t y = 0; y < M; ++y) {
+    fft_ptr(img, internal::FFTDir::Inverse, y * N, N, 1);
   }
-  for (size_t x = 0; x < M; ++x) {
-    fft_ptr(img, internal::FFTDir::Inverse, x, N, M);
+  for (size_t x = 0; x < N; ++x) {
+    fft_ptr(img, internal::FFTDir::Inverse, x, M, N);
   }
 
   for (size_t y = 0; y < height; ++y) {
     for (size_t x = 0; x < width; ++x) {
-      double v = std::clamp(img[y * M + x].real(), 0.0, 1.0);
+      double v = std::clamp(img[y * N + x].real(), 0.0, 1.0);
       data[y * width + x] = static_cast<unsigned char>(v * 255.0);
     }
   }

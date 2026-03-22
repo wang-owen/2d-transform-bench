@@ -7,9 +7,9 @@ namespace dft2 {
 
 namespace internal {
 
-void dft2(std::vector<std::complex<double>> &data, int N, int M);
+void dft2(std::vector<std::complex<double>> &data, int M, int N);
 
-void idft2(std::vector<std::complex<double>> &data, int N, int M);
+void idft2(std::vector<std::complex<double>> &data, int M, int N);
 
 } // namespace internal
 
