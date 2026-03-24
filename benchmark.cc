@@ -1,17 +1,32 @@
+#include "dct2.h"
 #include "dft2.h"
 #include "fft2.h"
 
 #include <algorithm>
 #include <chrono>
 #include <complex>
+#include <csignal>
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <stdexcept>
 #include <vector>
 
-enum class Transform { DFT, FFT_ITER, FFT_RECUR };
+enum class Transform { DFT, FFT_ITER, FFT_RECUR, DCT };
 
-std::vector<std::complex<double>> generate_data(int N) {
+std::vector<double> generate_data_real(int N) {
+  std::vector<double> data(N * N);
+  std::mt19937 rng(1);
+  std::uniform_real_distribution<double> dist(0.0, 1.0);
+
+  for (auto &x : data) {
+    x = dist(rng);
+  }
+
+  return data;
+}
+
+std::vector<std::complex<double>> generate_data_complex(int N) {
   std::vector<std::complex<double>> data(N * N);
   std::mt19937 rng(1);
   std::uniform_real_distribution<double> dist(0.0, 1.0);
@@ -96,7 +111,7 @@ double avg_runtime(std::vector<double> data, int N, Transform transform,
 
 int main() {
   std::ofstream csv("timings.csv");
-  csv << "N,DFT_time_ms,FFT_ITER_time_ms,FFT_RECUR_time_ms\n";
+  csv << "N,DFT_time_ms,FFT_ITER_time_ms,FFT_RECUR_time_ms,DCT_time_ms\n";
 
   std::vector<int> sizes = {64, 128, 256, 512, 1024};
 
@@ -114,9 +129,10 @@ int main() {
     double dct_time = avg_runtime(real_data, N, Transform::DCT, runs);
 
     csv << N << "," << dft_time << "," << fft_iter_time << "," << fft_recur_time
-        << "\n";
+        << "," << dct_time << "\n";
     std::cout << "N=" << N << ": DFT=" << dft_time
               << "ms, FFT_ITER=" << fft_iter_time
-              << "ms, FFT_RECUR=" << fft_recur_time << "ms\n";
+              << "ms, FFT_RECUR=" << fft_recur_time << "ms, DCT=" << dct_time
+              << "ms\n";
   }
 }
