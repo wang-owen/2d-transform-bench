@@ -41,8 +41,8 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
-  fft2::transform(data, width, height, GRAYSCALE, ratio);
-  // dft2::transform(data, width, height, GRAYSCALE, ratio);
+  fft2::transform(data, width, height, ratio);
+  // dft2::transform(data, width, height, ratio);
 
   stbi_write_png(argv[2], width, height, GRAYSCALE, data, width);
 

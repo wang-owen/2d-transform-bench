@@ -9,11 +9,13 @@ namespace dft2 {
 
 namespace internal {
 
-void dft2(std::vector<std::complex<double>> &data, int M, int N) {
-  const std::complex<double> W_M =
-      std::exp(std::complex<double>(0, -2.0 * std::numbers::pi / M));
-  const std::complex<double> W_N =
-      std::exp(std::complex<double>(0, -2.0 * std::numbers::pi / N));
+void dft2(std::vector<std::complex<double>> &data, int M, int N, Dir dir) {
+  const int direction = static_cast<int>(dir);
+  const double scale = direction == 1 ? 1.0 : 1.0 / (M * N);
+  const std::complex<double> W_M = std::exp(
+      std::complex<double>(0, -direction * 2.0 * std::numbers::pi / M));
+  const std::complex<double> W_N = std::exp(
+      std::complex<double>(0, -direction * 2.0 * std::numbers::pi / N));
 
   const auto input = data;
 
@@ -35,39 +37,7 @@ void dft2(std::vector<std::complex<double>> &data, int M, int N) {
         W_M_cur *= W_M_step;
       }
       W_N_step *= W_N;
-      data[k * N + l] = F;
-    }
-    W_M_step *= W_M;
-  }
-}
-
-void idft2(std::vector<std::complex<double>> &data, int M, int N) {
-  const std::complex<double> W_M =
-      std::exp(std::complex<double>(0, 2.0 * std::numbers::pi / M));
-  const std::complex<double> W_N =
-      std::exp(std::complex<double>(0, 2.0 * std::numbers::pi / N));
-
-  const auto input = data;
-
-  std::complex<double> W_M_step = 1.0;
-  for (int n = 0; n < M; ++n) {
-    std::complex<double> W_N_step = 1.0;
-
-    for (int j = 0; j < N; ++j) {
-      std::complex<double> W_M_cur = 1.0;
-      std::complex<double> f = 0;
-
-      for (int k = 0; k < M; ++k) {
-        std::complex<double> W_N_cur = 1.0;
-
-        for (int l = 0; l < N; ++l) {
-          f += input[k * N + l] * W_M_cur * W_N_cur;
-          W_N_cur *= W_N_step;
-        }
-        W_M_cur *= W_M_step;
-      }
-      W_N_step *= W_N;
-      data[n * N + j] = f / static_cast<double>(M * N);
+      data[k * N + l] = scale * F;
     }
     W_M_step *= W_M;
   }
@@ -75,8 +45,7 @@ void idft2(std::vector<std::complex<double>> &data, int M, int N) {
 
 } // namespace internal
 
-void transform(unsigned char *data, int width, int height, int channels,
-               double ratio) {
+void transform(unsigned char *data, int width, int height, double ratio) {
   const int M = height;
   const int N = width;
 
@@ -88,7 +57,7 @@ void transform(unsigned char *data, int width, int height, int channels,
     }
   }
 
-  internal::dft2(img, M, N);
+  internal::dft2(img, M, N, internal::Dir::Forward);
 
   const auto dc = img[0];
 
@@ -100,9 +69,9 @@ void transform(unsigned char *data, int width, int height, int channels,
     }
   }
 
-  const size_t idx =
-      std::min(static_cast<size_t>(std::floor((1.0 - ratio) * mags.size())),
-               mags.size() - 1);
+  const int idx =
+      std::min(static_cast<int>(std::floor((1.0 - ratio) * mags.size())),
+               static_cast<int>(mags.size()) - 1);
   std::nth_element(mags.begin(), mags.begin() + idx, mags.end());
   const double thresh = mags[idx];
 
@@ -116,10 +85,10 @@ void transform(unsigned char *data, int width, int height, int channels,
 
   img[0] = dc;
 
-  internal::idft2(img, M, N);
+  internal::dft2(img, M, N, internal::Dir::Inverse);
 
-  for (size_t y = 0; y < height; ++y) {
-    for (size_t x = 0; x < width; ++x) {
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
       double v = std::clamp(img[y * N + x].real(), 0.0, 1.0);
       data[y * width + x] = static_cast<unsigned char>(v * 255.0);
     }

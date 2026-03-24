@@ -62,13 +62,13 @@ int main(int argc, char *argv[]) {
 
   auto fftData = new unsigned char[height * width];
   copyData(data, fftData, height, width, width);
-  fft2::transform(fftData, width, height, GRAYSCALE, ratio);
+  fft2::transform(fftData, width, height, ratio);
 
   int dftM = std::bit_ceil(static_cast<unsigned int>(height));
   int dftN = std::bit_ceil(static_cast<unsigned int>(width));
   auto dftData = new unsigned char[dftM * dftN]();
   copyData(data, dftData, height, width, dftN);
-  dft2::transform(dftData, dftN, dftM, GRAYSCALE, ratio);
+  dft2::transform(dftData, dftN, dftM, ratio);
 
   if (checkEqual(fftData, dftData, height, width, width, dftN)) {
     std::cout << "SUCCESS\n";
