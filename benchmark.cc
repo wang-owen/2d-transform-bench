@@ -119,14 +119,18 @@ int main() {
     auto complex_data = generate_data_complex(N);
     auto real_data = generate_data_real(N);
 
-    int runs = std::max(1, 50 * (64 / N) * (64 / N));
+    int dft_dct_runs = std::max(1, static_cast<int>(50.0 * pow(64.0 / N, 4)));
+    int fft_runs =
+        std::max(1, static_cast<int>(50.0 * (64.0 * 64.0 * log(64.0)) /
+                                     (N * N * log(N))));
 
-    double dft_time = avg_runtime(complex_data, N, Transform::DFT, runs);
+    double dft_time =
+        avg_runtime(complex_data, N, Transform::DFT, dft_dct_runs);
     double fft_iter_time =
-        avg_runtime(complex_data, N, Transform::FFT_ITER, 50);
+        avg_runtime(complex_data, N, Transform::FFT_ITER, fft_runs);
     double fft_recur_time =
-        avg_runtime(complex_data, N, Transform::FFT_RECUR, 50);
-    double dct_time = avg_runtime(real_data, N, Transform::DCT, runs);
+        avg_runtime(complex_data, N, Transform::FFT_RECUR, fft_runs);
+    double dct_time = avg_runtime(real_data, N, Transform::DCT, dft_dct_runs);
 
     csv << N << "," << dft_time << "," << fft_iter_time << "," << fft_recur_time
         << "," << dct_time << "\n";
