@@ -47,7 +47,7 @@ double avg_runtime(std::vector<std::complex<double>> data, int N,
 
     switch (transform) {
     case Transform::DFT: {
-      dft2::internal::dft2(data, N, N);
+      dft2::internal::dft2_strided(data, N, N);
       break;
     }
     case Transform::FFT_ITER: {

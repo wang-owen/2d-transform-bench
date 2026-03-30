@@ -3,12 +3,58 @@
 #include <algorithm>
 #include <numbers>
 
-using namespace std::complex_literals;
-
 namespace dft2 {
 
 namespace internal {
 
+namespace {
+
+void dft_strided_impl(std::vector<std::complex<double>> &data,
+                      std::vector<std::complex<double>> &scratch, int start,
+                      int N, int stride, Dir dir) {
+  const int direction = static_cast<int>(dir);
+
+  for (int i = 0; i < N; ++i) {
+    scratch[i] = data[start + i * stride];
+  }
+
+  std::vector<std::complex<double>> table(N);
+  for (int k = 0; k < N; ++k) {
+    table[k] = std::exp(
+        std::complex<double>(0, -direction * 2.0 * k * std::numbers::pi / N));
+  }
+
+  for (int k = start; k < start + N * stride; k += stride) {
+    std::complex<double> F = 0;
+    for (int n = 0; n < N; ++n) {
+      F += scratch[n] * table[(((k - start) / stride) * n) % N];
+    }
+    data[k] = F;
+  }
+}
+
+} // namespace
+
+void dft2_strided(std::vector<std::complex<double>> &data, int M, int N,
+                  Dir dir) {
+  std::vector<std::complex<double>> scratch(std::max(M, N));
+
+  for (int y = 0; y < M; ++y) {
+    dft_strided_impl(data, scratch, y * N, N, 1, dir);
+  }
+  for (int x = 0; x < N; ++x) {
+    dft_strided_impl(data, scratch, x, M, N, dir);
+  }
+
+  if (dir == Dir::Forward) {
+    const double scale = 1.0 / (M * N);
+    for (auto &n : data) {
+      n *= scale;
+    }
+  }
+}
+
+[[deprecated("use dft2_strided instead")]]
 void dft2(std::vector<std::complex<double>> &data, int M, int N, Dir dir) {
   const int direction = static_cast<int>(dir);
   const double scale = direction == 1 ? 1.0 : 1.0 / (M * N);
@@ -57,7 +103,7 @@ void transform(unsigned char *data, int width, int height, double ratio) {
     }
   }
 
-  internal::dft2(img, M, N, internal::Dir::Forward);
+  internal::dft2_strided(img, M, N, internal::Dir::Forward);
 
   const auto dc = img[0];
 
@@ -85,7 +131,7 @@ void transform(unsigned char *data, int width, int height, double ratio) {
 
   img[0] = dc;
 
-  internal::dft2(img, M, N, internal::Dir::Inverse);
+  internal::dft2_strided(img, M, N, internal::Dir::Inverse);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
