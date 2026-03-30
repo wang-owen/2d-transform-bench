@@ -8,9 +8,7 @@ namespace internal {
 
 enum class Dir { Forward = 1, Inverse = -1 };
 
-void dct1(std::vector<double> &data, int start, int length, int stride);
-
-void idct1(std::vector<double> &data, int start, int length, int stride);
+void dct2(std::vector<double> &data, int M, int N, Dir dir = Dir::Forward);
 
 void quantize(std::vector<double> &data, int M, int N, double ratio);
 

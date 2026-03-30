@@ -98,7 +98,7 @@ int main() {
   std::ofstream csv("timings.csv");
   csv << "N,DFT_time_ms,FFT_ITER_time_ms,FFT_RECUR_time_ms,DCT_time_ms\n";
 
-  std::vector<int> sizes = {64, 128, 256, 512, 1024};
+  std::vector<int> sizes = {64, 128, 256, 512, 1024, 2048};
 
   for (int N : sizes) {
     auto complex_data = generate_data_complex(N);

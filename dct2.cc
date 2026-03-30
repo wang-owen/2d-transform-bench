@@ -2,14 +2,35 @@
 
 #include <algorithm>
 #include <array>
+#include <cassert>
 #include <cmath>
-#include <numbers>
 
 namespace dct2 {
 
 namespace internal {
 
-void dct1(std::vector<double> &data, int start, int length, int stride) {
+namespace {
+
+constexpr std::array<std::array<double, 8>, 8> COS_TABLE = {
+    {{1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
+     {0.980785, 0.83147, 0.55557, 0.19509, -0.19509, -0.55557, -0.83147,
+      -0.980785},
+     {0.92388, 0.382683, -0.382683, -0.92388, -0.92388, -0.382683, 0.382683,
+      0.92388},
+     {0.83147, -0.19509, -0.980785, -0.55557, 0.55557, 0.980785, 0.19509,
+      -0.83147},
+     {0.707107, -0.707107, -0.707107, 0.707107, 0.707107, -0.707107, -0.707107,
+      0.707107},
+     {0.55557, -0.980785, 0.19509, 0.83147, -0.83147, -0.19509, 0.980785,
+      -0.55557},
+     {0.382683, -0.92388, 0.92388, -0.382683, -0.382683, 0.92388, -0.92388,
+      0.382683},
+     {0.19509, -0.55557, 0.83147, -0.980785, 0.980785, -0.83147, 0.55557,
+      -0.19509}}};
+
+void dct1_impl(std::vector<double> &data, int start, int length, int stride) {
+  assert(length % 8 == 0);
+
   const int N = 8;
 
   std::vector<double> temp;
@@ -19,7 +40,6 @@ void dct1(std::vector<double> &data, int start, int length, int stride) {
   }
 
   const double C_k = sqrt(2.0 / N);
-  const double pn = std::numbers::pi / N;
 
   int blockIdx = 0;
   for (int s = start; s < start + length * stride; s += 8 * stride) {
@@ -28,7 +48,7 @@ void dct1(std::vector<double> &data, int start, int length, int stride) {
       data[i] = 0;
 
       for (int n = 0; n < N; ++n) {
-        data[i] += temp[blockIdx * 8 + n] * cos(pn * (n + 1 / 2.0) * k);
+        data[i] += temp[blockIdx * 8 + n] * COS_TABLE[k][n];
       }
 
       data[i] *= k == 0 ? sqrt(1.0 / N) : C_k;
@@ -37,7 +57,9 @@ void dct1(std::vector<double> &data, int start, int length, int stride) {
   }
 }
 
-void idct1(std::vector<double> &data, int start, int length, int stride) {
+void idct1_impl(std::vector<double> &data, int start, int length, int stride) {
+  assert(length % 8 == 0);
+
   const int N = 8;
 
   std::vector<double> temp;
@@ -47,7 +69,6 @@ void idct1(std::vector<double> &data, int start, int length, int stride) {
   }
 
   const double C_k = sqrt(2.0 / N);
-  const double pn = std::numbers::pi / N;
 
   int blockIdx = 0;
   for (int s = start; s < start + length * stride; s += 8 * stride) {
@@ -57,10 +78,23 @@ void idct1(std::vector<double> &data, int start, int length, int stride) {
 
       for (int k = 0; k < N; ++k) {
         data[i] += (k == 0 ? sqrt(1.0 / N) : C_k) * temp[blockIdx * 8 + k] *
-                   cos(pn * (n + 1 / 2.0) * k);
+                   COS_TABLE[k][n];
       }
     }
     ++blockIdx;
+  }
+}
+
+} // namespace
+
+void dct2(std::vector<double> &data, int M, int N, Dir dir) {
+  auto dct_ptr = dir == Dir::Forward ? dct1_impl : idct1_impl;
+
+  for (int y = 0; y < M; ++y) {
+    dct_ptr(data, y * N, N, 1);
+  }
+  for (int x = 0; x < N; ++x) {
+    dct_ptr(data, x, M, N);
   }
 }
 
@@ -104,23 +138,13 @@ void transform(unsigned char *data, int width, int height, double ratio) {
     }
   }
 
-  for (int y = 0; y < M; ++y) {
-    internal::dct1(img, y * N, N, 1);
-  }
-  for (int x = 0; x < N; ++x) {
-    internal::dct1(img, x, M, N);
-  }
+  internal::dct2(img, M, N, internal::Dir::Forward);
 
   internal::quantize(img, M, N, ratio);
 
   internal::dequantize(img, M, N, ratio);
 
-  for (int y = 0; y < M; ++y) {
-    internal::idct1(img, y * N, N, 1);
-  }
-  for (int x = 0; x < N; ++x) {
-    internal::idct1(img, x, M, N);
-  }
+  internal::dct2(img, M, N, internal::Dir::Inverse);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
