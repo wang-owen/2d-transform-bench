@@ -64,6 +64,10 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
 
+  if (quality == -1) {
+    quality = algorithm == "--dct" ? 1.0 : 0.5;
+  }
+
   int width, height, channels;
   unsigned char *data =
       stbi_load(input_path, &width, &height, &channels, GRAYSCALE);
