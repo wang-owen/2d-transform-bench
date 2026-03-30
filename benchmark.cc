@@ -51,21 +51,11 @@ double avg_runtime(std::vector<std::complex<double>> data, int N,
       break;
     }
     case Transform::FFT_ITER: {
-      for (int y = 0; y < N; ++y) {
-        fft2::internal::fft_strided_iter(data, y * N, N, 1);
-      }
-      for (int x = 0; x < N; ++x) {
-        fft2::internal::fft_strided_iter(data, x, N, N);
-      }
+      fft2::internal::fft_strided_iter(data, N, N);
       break;
     }
     case Transform::FFT_RECUR: {
-      for (int y = 0; y < N; ++y) {
-        fft2::internal::fft_strided_recur(data, y * N, N, 1);
-      }
-      for (int x = 0; x < N; ++x) {
-        fft2::internal::fft_strided_recur(data, x, N, N);
-      }
+      fft2::internal::fft_strided_recur(data, N, N);
       break;
     }
     default: {
@@ -89,12 +79,7 @@ double avg_runtime(std::vector<double> data, int N, Transform transform,
 
     switch (transform) {
     case Transform::DCT: {
-      for (int y = 0; y < N; ++y) {
-        dct2::internal::dct1(data, y * N, N, 1);
-      }
-      for (int x = 0; x < N; ++x) {
-        dct2::internal::dct1(data, x, N, N);
-      }
+      dct2::internal::dct2(data, N, N);
       break;
     }
     default: {

@@ -11,11 +11,11 @@ enum class Dir { Forward = 1, Inverse = -1 };
 
 enum class Method { ITER, RECUR };
 
-void fft_strided_iter(std::vector<std::complex<double>> &data, int start, int N,
-                      int stride, Dir dir = Dir::Forward);
+void fft_strided_iter(std::vector<std::complex<double>> &data, int M, int N,
+                      Dir dir = Dir::Forward);
 
-void fft_strided_recur(std::vector<std::complex<double>> &data, int start,
-                       int N, int stride, Dir dir = Dir::Forward);
+void fft_strided_recur(std::vector<std::complex<double>> &data, int M, int N,
+                       Dir dir = Dir::Forward);
 
 } // namespace internal
 

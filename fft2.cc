@@ -58,19 +58,8 @@ void fft_strided_recur_impl(std::vector<std::complex<double>> &data,
                          stride, scale);
 }
 
-} // namespace
-
-void fft_strided_recur(std::vector<std::complex<double>> &data, int start,
-                       int N, int stride, Dir dir) {
-  const int direction = static_cast<int>(dir);
-  const double scale = direction == 1 ? 1 : 0.5;
-
-  fft_strided_recur_impl(data, direction, start, N, stride, scale);
-  bit_reversal_strided(data, N, start, stride);
-}
-
-void fft_strided_iter(std::vector<std::complex<double>> &data, int start, int N,
-                      int stride, Dir dir) {
+void fft_strided_iter_impl(std::vector<std::complex<double>> &data, int start,
+                           int N, int stride, Dir dir) {
   const int direction = static_cast<int>(dir);
   const double scale = direction == 1 ? 1 : 0.5;
 
@@ -99,6 +88,34 @@ void fft_strided_iter(std::vector<std::complex<double>> &data, int start, int N,
   bit_reversal_strided(data, N, start, stride);
 }
 
+} // namespace
+
+void fft_strided_recur(std::vector<std::complex<double>> &data, int M, int N,
+                       Dir dir) {
+  const int direction = static_cast<int>(dir);
+  const double scale = direction == 1 ? 1 : 0.5;
+
+  for (int y = 0; y < M; ++y) {
+    fft_strided_recur_impl(data, direction, y * N, N, 1, scale);
+    bit_reversal_strided(data, N, y * N, 1);
+  }
+  for (int x = 0; x < N; ++x) {
+    fft_strided_recur_impl(data, direction, x, M, N, scale);
+    bit_reversal_strided(data, N, x, N);
+  }
+}
+
+void fft_strided_iter(std::vector<std::complex<double>> &data, int M, int N,
+                      Dir dir) {
+
+  for (int y = 0; y < M; ++y) {
+    fft_strided_iter_impl(data, y * N, N, 1, dir);
+  }
+  for (int x = 0; x < N; ++x) {
+    fft_strided_iter_impl(data, x, M, N, dir);
+  }
+}
+
 } // namespace internal
 
 void transform(unsigned char *data, int width, int height, double ratio,
@@ -116,12 +133,7 @@ void transform(unsigned char *data, int width, int height, double ratio,
   auto fft_ptr = method == internal::Method::ITER ? internal::fft_strided_iter
                                                   : internal::fft_strided_recur;
 
-  for (int y = 0; y < M; ++y) {
-    fft_ptr(img, y * N, N, 1, internal::Dir::Forward);
-  }
-  for (int x = 0; x < N; ++x) {
-    fft_ptr(img, x, M, N, internal::Dir::Forward);
-  }
+  fft_ptr(img, M, N, internal::Dir::Forward);
 
   std::vector<double> mags;
   mags.reserve(img.size());
@@ -141,12 +153,7 @@ void transform(unsigned char *data, int width, int height, double ratio,
     }
   }
 
-  for (int y = 0; y < M; ++y) {
-    fft_ptr(img, y * N, N, 1, internal::Dir::Inverse);
-  }
-  for (int x = 0; x < N; ++x) {
-    fft_ptr(img, x, M, N, internal::Dir::Inverse);
-  }
+  fft_ptr(img, M, N, internal::Dir::Inverse);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
