@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
   const char *input_path = argv[pos];
   const char *output_path = argv[pos + 1];
 
-  double quality = -1;
+  float quality = -1;
   if (pos + 2 < argc) {
     try {
       quality = std::stod(argv[pos + 2]);
@@ -65,7 +65,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (quality == -1) {
-    quality = algorithm == "--dct" ? 1.0 : 0.5;
+    quality = algorithm == "--dct" ? 1.0f : 0.5f;
   }
 
   int width, height, channels;

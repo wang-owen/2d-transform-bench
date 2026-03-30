@@ -11,7 +11,7 @@ namespace internal {
 
 namespace {
 
-constexpr std::array<std::array<double, 8>, 8> COS_TABLE = {
+constexpr std::array<std::array<float, 8>, 8> COS_TABLE = {
     {{1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
      {0.980785, 0.83147, 0.55557, 0.19509, -0.19509, -0.55557, -0.83147,
       -0.980785},
@@ -28,18 +28,18 @@ constexpr std::array<std::array<double, 8>, 8> COS_TABLE = {
      {0.19509, -0.55557, 0.83147, -0.980785, 0.980785, -0.83147, 0.55557,
       -0.19509}}};
 
-void dct1_impl(std::vector<double> &data, int start, int length, int stride) {
+void dct1_impl(std::vector<float> &data, int start, int length, int stride) {
   assert(length % 8 == 0);
 
   const int N = 8;
 
-  std::vector<double> temp;
+  std::vector<float> temp;
   temp.reserve(length);
   for (int i = start; i < start + length * stride; i += stride) {
     temp.push_back(data[i]);
   }
 
-  const double C_k = sqrt(2.0 / N);
+  const float C_k = sqrt(2.0f / N);
 
   int blockIdx = 0;
   for (int s = start; s < start + length * stride; s += 8 * stride) {
@@ -51,24 +51,24 @@ void dct1_impl(std::vector<double> &data, int start, int length, int stride) {
         data[i] += temp[blockIdx * 8 + n] * COS_TABLE[k][n];
       }
 
-      data[i] *= k == 0 ? sqrt(1.0 / N) : C_k;
+      data[i] *= k == 0 ? sqrt(1.0f / N) : C_k;
     }
     ++blockIdx;
   }
 }
 
-void idct1_impl(std::vector<double> &data, int start, int length, int stride) {
+void idct1_impl(std::vector<float> &data, int start, int length, int stride) {
   assert(length % 8 == 0);
 
   const int N = 8;
 
-  std::vector<double> temp;
+  std::vector<float> temp;
   temp.reserve(length);
   for (int i = start; i < start + length * stride; i += stride) {
     temp.push_back(data[i]);
   }
 
-  const double C_k = sqrt(2.0 / N);
+  const float C_k = sqrt(2.0f / N);
 
   int blockIdx = 0;
   for (int s = start; s < start + length * stride; s += 8 * stride) {
@@ -77,7 +77,7 @@ void idct1_impl(std::vector<double> &data, int start, int length, int stride) {
       data[i] = 0;
 
       for (int k = 0; k < N; ++k) {
-        data[i] += (k == 0 ? sqrt(1.0 / N) : C_k) * temp[blockIdx * 8 + k] *
+        data[i] += (k == 0 ? sqrt(1.0f / N) : C_k) * temp[blockIdx * 8 + k] *
                    COS_TABLE[k][n];
       }
     }
@@ -87,7 +87,7 @@ void idct1_impl(std::vector<double> &data, int start, int length, int stride) {
 
 } // namespace
 
-void dct2(std::vector<double> &data, int M, int N, Dir dir) {
+void dct2(std::vector<float> &data, int M, int N, Dir dir) {
   auto dct_ptr = dir == Dir::Forward ? dct1_impl : idct1_impl;
 
   for (int y = 0; y < M; ++y) {
@@ -108,47 +108,47 @@ constexpr std::array<std::array<int, 8>, 8> std_luminance_table = {
      {{49, 64, 78, 87, 103, 121, 120, 101}},
      {{72, 92, 95, 98, 112, 100, 103, 99}}}};
 
-void quantize(std::vector<double> &data, int M, int N, double ratio) {
+void quantize(std::vector<float> &data, int M, int N, float quality) {
   for (int i = 0; i < M; ++i) {
     for (int j = 0; j < N; ++j) {
-      data[i * N + j] = std::round(data[i * N + j] /
-                                   (ratio * std_luminance_table[i % 8][j % 8]));
+      data[i * N + j] = std::round(
+          data[i * N + j] / (quality * std_luminance_table[i % 8][j % 8]));
     }
   }
 }
 
-void dequantize(std::vector<double> &data, int M, int N, double ratio) {
+void dequantize(std::vector<float> &data, int M, int N, float quality) {
   for (int i = 0; i < M; ++i) {
     for (int j = 0; j < N; ++j) {
-      data[i * N + j] *= (ratio * std_luminance_table[i % 8][j % 8]);
+      data[i * N + j] *= (quality * std_luminance_table[i % 8][j % 8]);
     }
   }
 }
 
 } // namespace internal
 
-void transform(unsigned char *data, int width, int height, double ratio) {
+void transform(unsigned char *data, int width, int height, float quality) {
   const int M = ((height + 7) / 8) * 8;
   const int N = ((width + 7) / 8) * 8;
 
-  std::vector<double> img(N * M, 0);
+  std::vector<float> img(N * M, 0);
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
-      img[y * N + x] = (static_cast<double>(data[y * width + x]) - 128);
+      img[y * N + x] = (static_cast<float>(data[y * width + x]) - 128);
     }
   }
 
   internal::dct2(img, M, N, internal::Dir::Forward);
 
-  internal::quantize(img, M, N, ratio);
+  internal::quantize(img, M, N, quality);
 
-  internal::dequantize(img, M, N, ratio);
+  internal::dequantize(img, M, N, quality);
 
   internal::dct2(img, M, N, internal::Dir::Inverse);
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
-      double v = std::clamp(img[y * N + x], -128.0, 127.0);
+      float v = std::clamp(img[y * N + x], -128.0f, 127.0f);
       data[y * width + x] = static_cast<unsigned char>(v + 128);
     }
   }

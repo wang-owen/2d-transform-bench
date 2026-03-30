@@ -14,10 +14,10 @@
 
 enum class Transform { DFT, FFT_ITER, FFT_RECUR, DCT };
 
-std::vector<double> generate_data_real(int N) {
-  std::vector<double> data(N * N);
+std::vector<float> generate_data_real(int N) {
+  std::vector<float> data(N * N);
   std::mt19937 rng(1);
-  std::uniform_real_distribution<double> dist(0.0, 1.0);
+  std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
   for (auto &x : data) {
     x = dist(rng);
@@ -26,10 +26,10 @@ std::vector<double> generate_data_real(int N) {
   return data;
 }
 
-std::vector<std::complex<double>> generate_data_complex(int N) {
-  std::vector<std::complex<double>> data(N * N);
+std::vector<std::complex<float>> generate_data_complex(int N) {
+  std::vector<std::complex<float>> data(N * N);
   std::mt19937 rng(1);
-  std::uniform_real_distribution<double> dist(0.0, 1.0);
+  std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 
   for (auto &x : data) {
     x = {dist(rng), dist(rng)};
@@ -38,9 +38,9 @@ std::vector<std::complex<double>> generate_data_complex(int N) {
   return data;
 }
 
-double avg_runtime(std::vector<std::complex<double>> data, int N,
-                   Transform transform, int runs) {
-  double total = 0.0;
+float avg_runtime(std::vector<std::complex<float>> data, int N,
+                  Transform transform, int runs) {
+  float total = 0.0f;
 
   for (int i = 0; i < runs; ++i) {
     auto start = std::chrono::high_resolution_clock::now();
@@ -59,20 +59,20 @@ double avg_runtime(std::vector<std::complex<double>> data, int N,
       break;
     }
     default: {
-      throw std::invalid_argument("Expected std::vector<std::complex<double>>");
+      throw std::invalid_argument("Expected std::vector<std::complex<float>>");
     }
     }
 
     auto end = std::chrono::high_resolution_clock::now();
-    total += std::chrono::duration<double, std::milli>(end - start).count();
+    total += std::chrono::duration<float, std::milli>(end - start).count();
   }
 
   return total / runs;
 }
 
-double avg_runtime(std::vector<double> data, int N, Transform transform,
-                   int runs) {
-  double total = 0.0;
+float avg_runtime(std::vector<float> data, int N, Transform transform,
+                  int runs) {
+  float total = 0.0f;
 
   for (int i = 0; i < runs; ++i) {
     auto start = std::chrono::high_resolution_clock::now();
@@ -83,12 +83,12 @@ double avg_runtime(std::vector<double> data, int N, Transform transform,
       break;
     }
     default: {
-      throw std::invalid_argument("Expected std::vector<double>");
+      throw std::invalid_argument("Expected std::vector<float>");
     }
     }
 
     auto end = std::chrono::high_resolution_clock::now();
-    total += std::chrono::duration<double, std::milli>(end - start).count();
+    total += std::chrono::duration<float, std::milli>(end - start).count();
   }
 
   return total / runs;
@@ -104,18 +104,17 @@ int main() {
     auto complex_data = generate_data_complex(N);
     auto real_data = generate_data_real(N);
 
-    int dft_dct_runs = std::max(1, static_cast<int>(50.0 * pow(64.0 / N, 4)));
+    int dft_dct_runs = std::max(1, static_cast<int>(50.0f * pow(64.0f / N, 4)));
     int fft_runs =
-        std::max(1, static_cast<int>(50.0 * (64.0 * 64.0 * log(64.0)) /
+        std::max(1, static_cast<int>(50.0f * (64.0f * 64.0f * log(64.0f)) /
                                      (N * N * log(N))));
 
-    double dft_time =
-        avg_runtime(complex_data, N, Transform::DFT, dft_dct_runs);
-    double fft_iter_time =
+    float dft_time = avg_runtime(complex_data, N, Transform::DFT, dft_dct_runs);
+    float fft_iter_time =
         avg_runtime(complex_data, N, Transform::FFT_ITER, fft_runs);
-    double fft_recur_time =
+    float fft_recur_time =
         avg_runtime(complex_data, N, Transform::FFT_RECUR, fft_runs);
-    double dct_time = avg_runtime(real_data, N, Transform::DCT, dft_dct_runs);
+    float dct_time = avg_runtime(real_data, N, Transform::DCT, dft_dct_runs);
 
     csv << N << "," << dft_time << "," << fft_iter_time << "," << fft_recur_time
         << "," << dct_time << "\n";

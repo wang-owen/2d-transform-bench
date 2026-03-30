@@ -8,14 +8,15 @@ namespace internal {
 
 enum class Dir { Forward = 1, Inverse = -1 };
 
-void dct2(std::vector<double> &data, int M, int N, Dir dir = Dir::Forward);
+void dct2(std::vector<float> &data, int M, int N, Dir dir = Dir::Forward);
 
-void quantize(std::vector<double> &data, int M, int N, double ratio);
+void quantize(std::vector<float> &data, int M, int N, float quality);
 
-void dequantize(std::vector<double> &data, int M, int N, double ratio);
+void dequantize(std::vector<float> &data, int M, int N, float quality);
 
 } // namespace internal
 
-void transform(unsigned char *data, int width, int height, double ratio = 1);
+void transform(unsigned char *data, int width, int height,
+               float quality = 1.0f);
 
 } // namespace dct2

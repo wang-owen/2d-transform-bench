@@ -9,14 +9,15 @@ namespace internal {
 
 enum class Dir { Forward = 1, Inverse = -1 };
 
-void dft2(std::vector<std::complex<double>> &data, int M, int N,
+void dft2(std::vector<std::complex<float>> &data, int M, int N,
           Dir dir = Dir::Forward);
 
-void dft2_strided(std::vector<std::complex<double>> &data, int M, int N,
+void dft2_strided(std::vector<std::complex<float>> &data, int M, int N,
                   Dir dir = Dir::Forward);
 
 } // namespace internal
 
-void transform(unsigned char *data, int width, int height, double ratio = 0.1);
+void transform(unsigned char *data, int width, int height,
+               float quality = 0.1f);
 
 } // namespace dft2

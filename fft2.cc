@@ -12,7 +12,7 @@ namespace internal {
 
 namespace {
 
-void bit_reversal_strided(std::vector<std::complex<double>> &a, int length,
+void bit_reversal_strided(std::vector<std::complex<float>> &a, int length,
                           int start, int stride) {
   int j = 0;
   for (int i = 1; i < length; i++) {
@@ -29,17 +29,17 @@ void bit_reversal_strided(std::vector<std::complex<double>> &a, int length,
   }
 }
 
-void fft_strided_recur_impl(std::vector<std::complex<double>> &data,
+void fft_strided_recur_impl(std::vector<std::complex<float>> &data,
                             int direction, int start, int N, int stride,
-                            double scale) {
+                            float scale) {
   if (N <= 1) {
     return;
   }
 
   const auto WN =
-      std::exp(std::complex<double>(0, -direction * 2 * std::numbers::pi / N));
+      std::exp(std::complex<float>(0, -direction * 2 * std::numbers::pi / N));
 
-  std::complex<double> w = 1;
+  std::complex<float> w = 1;
   for (int n = 0; n < N / 2; ++n) {
     const int i1 = start + n * stride;
     const int i2 = start + (n + N / 2) * stride;
@@ -58,18 +58,18 @@ void fft_strided_recur_impl(std::vector<std::complex<double>> &data,
                          stride, scale);
 }
 
-void fft_strided_iter_impl(std::vector<std::complex<double>> &data, int start,
+void fft_strided_iter_impl(std::vector<std::complex<float>> &data, int start,
                            int N, int stride, Dir dir) {
   const int direction = static_cast<int>(dir);
-  const double scale = direction == 1 ? 1 : 0.5;
+  const float scale = direction == 1 ? 1.0f : 0.5f;
 
   for (int size = N; size > 1; size >>= 1) {
     const auto WN = std::exp(
-        std::complex<double>(0, -direction * 2 * std::numbers::pi / size));
+        std::complex<float>(0, -direction * 2 * std::numbers::pi / size));
 
     for (int block = 0; block < N / size; ++block) {
       int n1 = start + block * size * stride;
-      std::complex<double> w = 1;
+      std::complex<float> w = 1;
       for (int n = 0; n < (size >> 1); ++n) {
         const int i1 = n1 + n * stride;
         const int i2 = n1 + (n + (size >> 1)) * stride;
@@ -90,10 +90,10 @@ void fft_strided_iter_impl(std::vector<std::complex<double>> &data, int start,
 
 } // namespace
 
-void fft_strided_recur(std::vector<std::complex<double>> &data, int M, int N,
+void fft_strided_recur(std::vector<std::complex<float>> &data, int M, int N,
                        Dir dir) {
   const int direction = static_cast<int>(dir);
-  const double scale = direction == 1 ? 1 : 0.5;
+  const float scale = direction == 1 ? 1.0f : 0.5f;
 
   for (int y = 0; y < M; ++y) {
     fft_strided_recur_impl(data, direction, y * N, N, 1, scale);
@@ -105,7 +105,7 @@ void fft_strided_recur(std::vector<std::complex<double>> &data, int M, int N,
   }
 }
 
-void fft_strided_iter(std::vector<std::complex<double>> &data, int M, int N,
+void fft_strided_iter(std::vector<std::complex<float>> &data, int M, int N,
                       Dir dir) {
 
   for (int y = 0; y < M; ++y) {
@@ -118,15 +118,15 @@ void fft_strided_iter(std::vector<std::complex<double>> &data, int M, int N,
 
 } // namespace internal
 
-void transform(unsigned char *data, int width, int height, double ratio,
+void transform(unsigned char *data, int width, int height, float quality,
                internal::Method method) {
   const int M = std::bit_ceil(static_cast<unsigned int>(height));
   const int N = std::bit_ceil(static_cast<unsigned int>(width));
 
-  std::vector<std::complex<double>> img(M * N, 0);
+  std::vector<std::complex<float>> img(M * N, 0);
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
-      img[y * N + x] = static_cast<double>(data[y * width + x]) / 255.0;
+      img[y * N + x] = static_cast<float>(data[y * width + x]) / 255.0f;
     }
   }
 
@@ -135,17 +135,17 @@ void transform(unsigned char *data, int width, int height, double ratio,
 
   fft_ptr(img, M, N, internal::Dir::Forward);
 
-  std::vector<double> mags;
+  std::vector<float> mags;
   mags.reserve(img.size());
   for (auto &v : img) {
     mags.push_back(std::abs(v));
   }
 
   const int idx =
-      std::min(static_cast<int>(std::floor((1.0 - ratio) * mags.size())),
+      std::min(static_cast<int>(std::floor((1.0f - quality) * mags.size())),
                static_cast<int>(mags.size()) - 1);
   std::nth_element(mags.begin(), mags.begin() + idx, mags.end());
-  const double thresh = mags[idx];
+  const float thresh = mags[idx];
 
   for (size_t i = 1; i < img.size(); ++i) {
     if (std::abs(img[i]) < thresh) {
@@ -157,8 +157,8 @@ void transform(unsigned char *data, int width, int height, double ratio,
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
-      double v = std::clamp(img[y * N + x].real(), 0.0, 1.0);
-      data[y * width + x] = static_cast<unsigned char>(v * 255.0);
+      float v = std::clamp(img[y * N + x].real(), 0.0f, 1.0f);
+      data[y * width + x] = static_cast<unsigned char>(v * 255.0f);
     }
   }
 }
