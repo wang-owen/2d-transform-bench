@@ -1,9 +1,14 @@
+import sys
 import matplotlib.pyplot as plt
 import csv
 
+if len(sys.argv) != 2:
+    print(f"usage: {sys.argv[0]} <input>", file=sys.stderr)
+    exit(1)
+
 Ns, dft_times, fft_iter_times, fft_recur_times, dct_times = [], [], [], [], []
 
-with open("timings.csv") as f:
+with open(sys.argv[1]) as f:
     reader = csv.DictReader(f)
     for row in reader:
         Ns.append(int(row["N"]))
@@ -18,7 +23,7 @@ plt.plot(Ns, fft_recur_times, label="Recursive FFT")
 plt.plot(Ns, dct_times, label="DCT")
 plt.xlabel("Input size N")
 plt.ylabel("Average runtime (ms)")
-plt.title("Fourier algorithm performances")
+plt.title("Transform algorithm performances")
 plt.legend()
 plt.yscale("log")
 plt.show()

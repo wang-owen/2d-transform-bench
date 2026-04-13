@@ -6,6 +6,8 @@
 #include <chrono>
 #include <complex>
 #include <csignal>
+#include <cstdlib>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <random>
@@ -94,8 +96,13 @@ float avg_runtime(std::vector<float> data, int N, Transform transform,
   return total / runs;
 }
 
-int main() {
-  std::ofstream csv("timings.csv");
+int main(int argc, char *argv[]) {
+  if (argc != 2) {
+    std::cerr << std::format("usage: {} <output>\n", argv[0]);
+    exit(1);
+  }
+
+  std::ofstream csv(argv[1]);
   csv << "N,DFT_time_ms,FFT_ITER_time_ms,FFT_RECUR_time_ms,DCT_time_ms\n";
 
   std::vector<int> sizes = {64, 128, 256, 512, 1024, 2048};
