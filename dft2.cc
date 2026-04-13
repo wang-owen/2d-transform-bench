@@ -10,26 +10,26 @@ namespace internal {
 namespace {
 
 void dft_strided_impl(std::vector<std::complex<float>> &data,
-                      std::vector<std::complex<float>> &scratch, int start,
-                      int N, int stride, Dir dir) {
-  const int direction = static_cast<int>(dir);
-
+                      std::vector<std::complex<float>> &scratch,
+                      std::vector<std::complex<float>> &table, int start, int N,
+                      int stride) {
   for (int i = 0; i < N; ++i) {
     scratch[i] = data[start + i * stride];
   }
 
-  std::vector<std::complex<float>> table(N);
-  for (int k = 0; k < N; ++k) {
-    table[k] = std::exp(
-        std::complex<float>(0, -direction * 2.0f * k * std::numbers::pi / N));
-  }
-
+  int ki = 0;
   for (int k = start; k < start + N * stride; k += stride) {
     std::complex<float> F = 0;
+    int idx = 0;
     for (int n = 0; n < N; ++n) {
-      F += scratch[n] * table[(((k - start) / stride) * n) % N];
+      F += scratch[n] * table[idx];
+      idx += ki;
+      if (idx >= N) {
+        idx -= N;
+      }
     }
     data[k] = F;
+    ++ki;
   }
 }
 
@@ -39,11 +39,22 @@ void dft2_strided(std::vector<std::complex<float>> &data, int M, int N,
                   Dir dir) {
   std::vector<std::complex<float>> scratch(std::max(M, N));
 
+  std::vector<std::complex<float>> table(N);
+  for (int k = 0; k < N; ++k) {
+    table[k] = std::exp(std::complex<float>(0, -static_cast<int>(dir) * 2.0f *
+                                                   k * std::numbers::pi / N));
+  }
   for (int y = 0; y < M; ++y) {
-    dft_strided_impl(data, scratch, y * N, N, 1, dir);
+    dft_strided_impl(data, scratch, table, y * N, N, 1);
+  }
+
+  table.resize(M);
+  for (int k = 0; k < M; ++k) {
+    table[k] = std::exp(std::complex<float>(0, -static_cast<int>(dir) * 2.0f *
+                                                   k * std::numbers::pi / M));
   }
   for (int x = 0; x < N; ++x) {
-    dft_strided_impl(data, scratch, x, M, N, dir);
+    dft_strided_impl(data, scratch, table, x, M, N);
   }
 
   if (dir == Dir::Forward) {
