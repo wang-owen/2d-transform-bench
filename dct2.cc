@@ -28,57 +28,61 @@ constexpr std::array<std::array<float, 8>, 8> COS_TABLE = {
      {0.19509, -0.55557, 0.83147, -0.980785, 0.980785, -0.83147, 0.55557,
       -0.19509}}};
 
-void dct1_impl(std::vector<float> &data, int start, int length, int stride) {
+constexpr float C_0 = 0.353553f; // sqrt(1.0f / N);
+constexpr float C_k = 0.5f;      // sqrt(2.0f / N);
+
+void dct1_impl(std::vector<float> &data, int start, int length, int stride,
+               std::vector<float> &scratch) {
   assert(length % 8 == 0);
 
   const int N = 8;
 
-  std::vector<float> temp;
-  temp.reserve(length);
+  size_t j = 0;
   for (int i = start; i < start + length * stride; i += stride) {
-    temp.push_back(data[i]);
+    scratch[j++] = data[i];
   }
-
-  const float C_k = sqrt(2.0f / N);
 
   int blockIdx = 0;
   for (int s = start; s < start + length * stride; s += 8 * stride) {
-    for (int k = 0; k < N; ++k) {
+    data[s] = 0;
+    for (int n = 0; n < N; ++n) {
+      data[s] += scratch[blockIdx * 8 + n] * COS_TABLE[0][n];
+    }
+    data[s] *= C_0;
+
+    for (int k = 1; k < N; ++k) {
       int i = s + k * stride;
       data[i] = 0;
 
       for (int n = 0; n < N; ++n) {
-        data[i] += temp[blockIdx * 8 + n] * COS_TABLE[k][n];
+        data[i] += scratch[blockIdx * 8 + n] * COS_TABLE[k][n];
       }
 
-      data[i] *= k == 0 ? sqrt(1.0f / N) : C_k;
+      data[i] *= C_k;
     }
     ++blockIdx;
   }
 }
 
-void idct1_impl(std::vector<float> &data, int start, int length, int stride) {
+void idct1_impl(std::vector<float> &data, int start, int length, int stride,
+                std::vector<float> &scratch) {
   assert(length % 8 == 0);
 
   const int N = 8;
 
-  std::vector<float> temp;
-  temp.reserve(length);
+  size_t j = 0;
   for (int i = start; i < start + length * stride; i += stride) {
-    temp.push_back(data[i]);
+    scratch[j++] = data[i];
   }
-
-  const float C_k = sqrt(2.0f / N);
 
   int blockIdx = 0;
   for (int s = start; s < start + length * stride; s += 8 * stride) {
     for (int n = 0; n < N; ++n) {
       int i = s + n * stride;
-      data[i] = 0;
+      data[i] = C_0 * scratch[blockIdx * 8] * COS_TABLE[0][n];
 
-      for (int k = 0; k < N; ++k) {
-        data[i] += (k == 0 ? sqrt(1.0f / N) : C_k) * temp[blockIdx * 8 + k] *
-                   COS_TABLE[k][n];
+      for (int k = 1; k < N; ++k) {
+        data[i] += C_k * scratch[blockIdx * 8 + k] * COS_TABLE[k][n];
       }
     }
     ++blockIdx;
@@ -90,11 +94,12 @@ void idct1_impl(std::vector<float> &data, int start, int length, int stride) {
 void dct2(std::vector<float> &data, int M, int N, Dir dir) {
   auto dct_ptr = dir == Dir::Forward ? dct1_impl : idct1_impl;
 
+  std::vector<float> scratch(std::max(M, N));
   for (int y = 0; y < M; ++y) {
-    dct_ptr(data, y * N, N, 1);
+    dct_ptr(data, y * N, N, 1, scratch);
   }
   for (int x = 0; x < N; ++x) {
-    dct_ptr(data, x, M, N);
+    dct_ptr(data, x, M, N, scratch);
   }
 }
 
