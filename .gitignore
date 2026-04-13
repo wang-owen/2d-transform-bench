@@ -1,0 +1,19 @@
+# Build artifacts
+*.o
+main
+benchmark
+equality_test
+
+# Generated / machine-specific
+Makefile
+.clangd
+pyrightconfig.json
+
+# Benchmark output
+*.csv
+
+# Assets
+assets/
+
+# macOS
+.DS_Store
