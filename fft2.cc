@@ -12,6 +12,55 @@ namespace internal {
 
 namespace {
 
+struct TwiddleCache {
+  int max_size = 1;
+  std::vector<std::vector<std::complex<float>>> forward;
+  std::vector<std::vector<std::complex<float>>> inverse;
+};
+
+TwiddleCache &twiddle_cache() {
+  static TwiddleCache cache;
+  return cache;
+}
+
+int log2_pow2(int n) { return std::countr_zero(static_cast<unsigned int>(n)); }
+
+void ensure_twiddles(int max_size) {
+  auto &cache = twiddle_cache();
+  if (max_size <= cache.max_size) {
+    return;
+  }
+
+  const int new_max = std::bit_ceil(static_cast<unsigned int>(max_size));
+  const int max_log2 = log2_pow2(new_max);
+  cache.forward.resize(max_log2 + 1);
+  cache.inverse.resize(max_log2 + 1);
+
+  for (int size = 2; size <= new_max; size <<= 1) {
+    const int lg = log2_pow2(size);
+    if (!cache.forward[lg].empty()) {
+      continue;
+    }
+
+    cache.forward[lg].resize(size >> 1);
+    cache.inverse[lg].resize(size >> 1);
+    for (int k = 0; k < (size >> 1); ++k) {
+      const float angle =
+          2.0f * std::numbers::pi_v<float> * static_cast<float>(k) / size;
+      cache.forward[lg][k] = {std::cos(-angle), std::sin(-angle)};
+      cache.inverse[lg][k] = {std::cos(angle), std::sin(angle)};
+    }
+  }
+
+  cache.max_size = new_max;
+}
+
+const std::vector<std::complex<float>> &twiddles_for_size(int size, Dir dir) {
+  const auto &cache = twiddle_cache();
+  const int lg = log2_pow2(size);
+  return dir == Dir::Forward ? cache.forward[lg] : cache.inverse[lg];
+}
+
 void bit_reversal_strided(std::vector<std::complex<float>> &a, int length,
                           int start, int stride) {
   int j = 0;
@@ -31,15 +80,12 @@ void bit_reversal_strided(std::vector<std::complex<float>> &a, int length,
 
 void fft_strided_recur_impl(std::vector<std::complex<float>> &data,
                             int direction, int start, int N, int stride,
-                            float scale) {
+                            Dir dir, float scale) {
   if (N <= 1) {
     return;
   }
 
-  const auto WN =
-      std::exp(std::complex<float>(0, -direction * 2 * std::numbers::pi / N));
-
-  std::complex<float> w = 1;
+  const auto &twiddles = twiddles_for_size(N, dir);
   for (int n = 0; n < N / 2; ++n) {
     const int i1 = start + n * stride;
     const int i2 = start + (n + N / 2) * stride;
@@ -48,14 +94,12 @@ void fft_strided_recur_impl(std::vector<std::complex<float>> &data,
     auto b = data[i2];
 
     data[i1] = scale * (a + b);
-    data[i2] = scale * (a - b) * w;
-
-    w *= WN;
+    data[i2] = scale * (a - b) * twiddles[n];
   }
 
-  fft_strided_recur_impl(data, direction, start, N / 2, stride, scale);
+  fft_strided_recur_impl(data, direction, start, N / 2, stride, dir, scale);
   fft_strided_recur_impl(data, direction, start + (N / 2) * stride, N / 2,
-                         stride, scale);
+                         stride, dir, scale);
 }
 
 void fft_strided_iter_impl(std::vector<std::complex<float>> &data, int start,
@@ -64,12 +108,10 @@ void fft_strided_iter_impl(std::vector<std::complex<float>> &data, int start,
   const float scale = direction == 1 ? 1.0f : 0.5f;
 
   for (int size = N; size > 1; size >>= 1) {
-    const auto WN = std::exp(
-        std::complex<float>(0, -direction * 2 * std::numbers::pi / size));
+    const auto &twiddles = twiddles_for_size(size, dir);
 
     for (int block = 0; block < N / size; ++block) {
       int n1 = start + block * size * stride;
-      std::complex<float> w = 1;
       for (int n = 0; n < (size >> 1); ++n) {
         const int i1 = n1 + n * stride;
         const int i2 = n1 + (n + (size >> 1)) * stride;
@@ -78,9 +120,7 @@ void fft_strided_iter_impl(std::vector<std::complex<float>> &data, int start,
         auto b = data[i2];
 
         data[i1] = scale * (a + b);
-        data[i2] = scale * (a - b) * w;
-
-        w *= WN;
+        data[i2] = scale * (a - b) * twiddles[n];
       }
     }
   }
@@ -92,21 +132,24 @@ void fft_strided_iter_impl(std::vector<std::complex<float>> &data, int start,
 
 void fft_strided_recur(std::vector<std::complex<float>> &data, int M, int N,
                        Dir dir) {
+  ensure_twiddles(std::max(M, N));
+
   const int direction = static_cast<int>(dir);
   const float scale = direction == 1 ? 1.0f : 0.5f;
 
   for (int y = 0; y < M; ++y) {
-    fft_strided_recur_impl(data, direction, y * N, N, 1, scale);
+    fft_strided_recur_impl(data, direction, y * N, N, 1, dir, scale);
     bit_reversal_strided(data, N, y * N, 1);
   }
   for (int x = 0; x < N; ++x) {
-    fft_strided_recur_impl(data, direction, x, M, N, scale);
-    bit_reversal_strided(data, N, x, N);
+    fft_strided_recur_impl(data, direction, x, M, N, dir, scale);
+    bit_reversal_strided(data, M, x, N);
   }
 }
 
 void fft_strided_iter(std::vector<std::complex<float>> &data, int M, int N,
                       Dir dir) {
+  ensure_twiddles(std::max(M, N));
 
   for (int y = 0; y < M; ++y) {
     fft_strided_iter_impl(data, y * N, N, 1, dir);
@@ -130,10 +173,11 @@ void transform(unsigned char *data, int width, int height, float quality,
     }
   }
 
-  auto fft_ptr = method == internal::Method::ITER ? internal::fft_strided_iter
-                                                  : internal::fft_strided_recur;
-
-  fft_ptr(img, M, N, internal::Dir::Forward);
+  if (method == internal::Method::ITER) {
+    internal::fft_strided_iter(img, M, N, internal::Dir::Forward);
+  } else {
+    internal::fft_strided_recur(img, M, N, internal::Dir::Forward);
+  }
 
   std::vector<float> mags;
   mags.reserve(img.size());
@@ -153,7 +197,11 @@ void transform(unsigned char *data, int width, int height, float quality,
     }
   }
 
-  fft_ptr(img, M, N, internal::Dir::Inverse);
+  if (method == internal::Method::ITER) {
+    internal::fft_strided_iter(img, M, N, internal::Dir::Inverse);
+  } else {
+    internal::fft_strided_recur(img, M, N, internal::Dir::Inverse);
+  }
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
