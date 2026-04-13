@@ -49,15 +49,15 @@ float avg_runtime(std::vector<std::complex<float>> data, int N,
 
     switch (transform) {
     case Transform::DFT: {
-      dft2::internal::dft2_strided(data, N, N);
+      dft2::internal::dft2_seperated(data, N, N);
       break;
     }
     case Transform::FFT_ITER: {
-      fft2::internal::fft_strided_iter(data, N, N);
+      fft2::internal::fft_iter(data, N, N);
       break;
     }
     case Transform::FFT_RECUR: {
-      fft2::internal::fft_strided_recur(data, N, N);
+      fft2::internal::fft_recur(data, N, N);
       break;
     }
     default: {
