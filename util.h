@@ -5,10 +5,9 @@
 
 namespace util {
 
-namespace {
+namespace internal {
 
 template <typename T>
-
 void transpose_flattened_square(std::vector<T> &arr, int N) {
   for (int i = 0; i < N; ++i) {
     for (int j = i + 1; j < N; ++j) {
@@ -17,12 +16,12 @@ void transpose_flattened_square(std::vector<T> &arr, int N) {
   }
 }
 
-} // namespace
+} // namespace internal
 
 template <typename T>
 void transpose_flattened(std::vector<T> &arr, int M, int N) {
   if (M == N) {
-    transpose_flattened_square(arr, N);
+    internal::transpose_flattened_square(arr, N);
     return;
   }
 
