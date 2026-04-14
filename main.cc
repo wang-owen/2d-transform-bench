@@ -18,7 +18,7 @@ int main(int argc, char *argv[]) {
       std::format("usage: {} [-t] --dft|--fft|--dct <input> "
                   "<output> [quality]\n"
                   "  -t: run transform using multiple threads\n"
-                  "  quality: [0, 1] for DFT/FFT, unrestricted for DCT\n",
+                  "  quality: [0, 1], higher is better (default 0.5)\n",
                   argv[0]);
 
   bool threaded = false;
@@ -73,7 +73,7 @@ int main(int argc, char *argv[]) {
   const char *input_path = argv[pos];
   const char *output_path = argv[pos + 1];
 
-  float quality = algorithm == Algorithm::DCT ? 1.0f : 0.5f;
+  float quality = 0.5f;
   if (remaining == 3) {
     try {
       quality = std::stof(argv[pos + 2]);
@@ -84,8 +84,8 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (algorithm != Algorithm::DCT && (quality < 0 || quality > 1)) {
-    std::cerr << "quality must be in [0, 1] for non-DCT transforms\n";
+  if (quality < 0 || quality > 1) {
+    std::cerr << "quality must be in [0, 1]\n";
     std::cerr << usage;
     return 1;
   }
