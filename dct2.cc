@@ -173,18 +173,25 @@ constexpr std::array<std::array<int, 8>, 8> std_luminance_table = {
      {{72, 92, 95, 98, 112, 100, 103, 99}}}};
 
 void quantize(std::vector<float> &data, int M, int N, float quality) {
+  float q = quality * 99.0f + 1.0f;
+  float S = q < 50.0f ? 5000.0f / q : 200.0f - 2.0f * q;
   for (int i = 0; i < M; ++i) {
     for (int j = 0; j < N; ++j) {
-      data[i * N + j] = std::round(
-          data[i * N + j] / (quality * std_luminance_table[i % 8][j % 8]));
+      float step = std::clamp(
+          (std_luminance_table[i % 8][j % 8] * S + 50) / 100, 1.0f, 255.0f);
+      data[i * N + j] = std::round(data[i * N + j] / step);
     }
   }
 }
 
 void dequantize(std::vector<float> &data, int M, int N, float quality) {
+  float q = quality * 99.0f + 1.0f;
+  float S = q < 50.0f ? 5000.0f / q : 200.0f - 2.0f * q;
   for (int i = 0; i < M; ++i) {
     for (int j = 0; j < N; ++j) {
-      data[i * N + j] *= (quality * std_luminance_table[i % 8][j % 8]);
+      float step = std::clamp(
+          (std_luminance_table[i % 8][j % 8] * S + 50) / 100, 1.0f, 255.0f);
+      data[i * N + j] *= step;
     }
   }
 }
