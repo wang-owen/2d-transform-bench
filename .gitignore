@@ -9,11 +9,8 @@ Makefile
 .clangd
 pyrightconfig.json
 
-# Benchmark output
-*.csv
-
-# Assets
-assets/
+# Tests
+tests/
 
 # macOS
 .DS_Store
