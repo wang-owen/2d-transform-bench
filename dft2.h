@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 #include <complex>
 #include <vector>
 
@@ -7,17 +9,16 @@ namespace dft2 {
 
 namespace internal {
 
-enum class Dir { Forward = 1, Inverse = -1 };
+using Dir = common::Dir;
 
 void dft2_separated(std::vector<std::complex<float>> &data, int M, int N,
-                    Dir dir = Dir::Forward);
+                    Dir dir);
 
 void dft2_separated_threaded(std::vector<std::complex<float>> &data, int M,
-                             int N, Dir dir = Dir::Forward);
+                             int N, Dir dir);
 
 [[deprecated]]
-void dft2(std::vector<std::complex<float>> &data, int M, int N,
-          Dir dir = Dir::Forward);
+void dft2(std::vector<std::complex<float>> &data, int M, int N, Dir dir);
 
 } // namespace internal
 

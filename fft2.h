@@ -1,5 +1,7 @@
 #pragma once
 
+#include "common.h"
+
 #include <complex>
 #include <vector>
 
@@ -7,18 +9,16 @@ namespace fft2 {
 
 namespace internal {
 
-enum class Dir { Forward = 1, Inverse = -1 };
+using Dir = common::Dir;
 
 enum class Method { ITER, RECUR };
 
-void fft_iter(std::vector<std::complex<float>> &data, int M, int N,
-              Dir dir = Dir::Forward);
+void fft_iter(std::vector<std::complex<float>> &data, int M, int N, Dir dir);
 
-void fft_recur(std::vector<std::complex<float>> &data, int M, int N,
-               Dir dir = Dir::Forward);
+void fft_recur(std::vector<std::complex<float>> &data, int M, int N, Dir dir);
 
 void fft_threaded(std::vector<std::complex<float>> &data, int M, int N,
-                  Dir dir = Dir::Forward);
+                  Dir dir);
 
 } // namespace internal
 

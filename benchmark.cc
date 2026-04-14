@@ -57,23 +57,23 @@ float avg_runtime(std::vector<std::complex<float>> data, int N,
 
     switch (transform) {
     case Transform::DFT: {
-      dft2::internal::dft2_separated(data, N, N);
+      dft2::internal::dft2_separated(data, N, N, common::Dir::Forward);
       break;
     }
     case Transform::DFT_T: {
-      dft2::internal::dft2_separated_threaded(data, N, N);
+      dft2::internal::dft2_separated_threaded(data, N, N, common::Dir::Forward);
       break;
     }
     case Transform::FFT_ITER: {
-      fft2::internal::fft_iter(data, N, N);
+      fft2::internal::fft_iter(data, N, N, common::Dir::Forward);
       break;
     }
     case Transform::FFT_RECUR: {
-      fft2::internal::fft_recur(data, N, N);
+      fft2::internal::fft_recur(data, N, N, common::Dir::Forward);
       break;
     }
     case Transform::FFT_T: {
-      fft2::internal::fft_threaded(data, N, N);
+      fft2::internal::fft_threaded(data, N, N, common::Dir::Forward);
       break;
     }
     default: {
@@ -97,11 +97,11 @@ float avg_runtime(std::vector<float> data, int N, Transform transform,
 
     switch (transform) {
     case Transform::DCT: {
-      dct2::internal::dct2(data, N, N);
+      dct2::internal::dct2(data, N, N, common::Dir::Forward);
       break;
     }
     case Transform::DCT_T: {
-      dct2::internal::dct2_threaded(data, N, N);
+      dct2::internal::dct2_threaded(data, N, N, common::Dir::Forward);
       break;
     }
     default: {

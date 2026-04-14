@@ -1,17 +1,18 @@
 #pragma once
 
+#include "common.h"
+
 #include <vector>
 
 namespace dct2 {
 
 namespace internal {
 
-enum class Dir { Forward = 1, Inverse = -1 };
+using Dir = common::Dir;
 
-void dct2(std::vector<float> &data, int M, int N, Dir dir = Dir::Forward);
+void dct2(std::vector<float> &data, int M, int N, Dir dir);
 
-void dct2_threaded(std::vector<float> &data, int M, int N,
-                   Dir dir = Dir::Forward);
+void dct2_threaded(std::vector<float> &data, int M, int N, Dir dir);
 
 void quantize(std::vector<float> &data, int M, int N, float quality);
 
@@ -19,7 +20,7 @@ void dequantize(std::vector<float> &data, int M, int N, float quality);
 
 } // namespace internal
 
-void transform(unsigned char *data, int width, int height, float quality = 1.0f,
+void transform(unsigned char *data, int width, int height, float quality = 0.5f,
                bool threaded = false);
 
 } // namespace dct2
