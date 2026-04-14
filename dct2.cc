@@ -91,21 +91,6 @@ void idct1_impl(std::vector<float> &data, int start, int length,
   }
 }
 
-void batch_dct1(std::vector<float> &data, int length, int start, int end,
-                int stride, Dir dir) {
-  std::vector<float> scratch(length);
-
-  if (dir == Dir::Forward) {
-    for (int i = start; i < end; i += stride) {
-      dct1_impl(data, i, length, scratch);
-    }
-  } else {
-    for (int i = start; i < end; i += stride) {
-      idct1_impl(data, i, length, scratch);
-    }
-  }
-}
-
 } // namespace
 
 void dct2(std::vector<float> &data, int M, int N, Dir dir) {
@@ -127,39 +112,52 @@ void dct2(std::vector<float> &data, int M, int N, Dir dir) {
 }
 
 void dct2_threaded(std::vector<float> &data, int M, int N, Dir dir) {
-  int num_threads = std::max(1u, std::thread::hardware_concurrency());
-  int rows_per_thread = std::ceil(1.0 * M / num_threads);
-  int cols_per_thread = std::ceil(1.0 * N / num_threads);
+  const int blocks_per_row = N / 8;
+  const int total_blocks = (M / 8) * blocks_per_row;
 
-  // Row pass
-  {
-    std::vector<std::jthread> pool;
+  const int num_threads = std::max(1u, std::thread::hardware_concurrency());
+  const int blocks_per_thread = (total_blocks + num_threads - 1) / num_threads;
+  const int num_active = std::min(num_threads, total_blocks);
 
-    int num_active = std::min(num_threads, M);
-    for (int i = 0; i < num_active; ++i) {
-      int start = i * rows_per_thread * N;
-      int end = std::min((i + 1) * rows_per_thread, M) * N;
+  auto dct_ptr = (dir == Dir::Forward) ? &dct1_impl : &idct1_impl;
 
-      pool.emplace_back(batch_dct1, std::ref(data), N, start, end, N, dir);
+  auto process_range = [&](int b_start, int b_end) {
+    std::vector<float> local_buf(64);
+    std::vector<float> scratch(64);
+
+    auto transpose8 = [&]() {
+      for (int r = 0; r < 8; ++r)
+        for (int c = r + 1; c < 8; ++c)
+          std::swap(local_buf[r * 8 + c], local_buf[c * 8 + r]);
+    };
+
+    for (int b = b_start; b < b_end; ++b) {
+      const int br = (b / blocks_per_row) * 8;
+      const int bc = (b % blocks_per_row) * 8;
+
+      for (int r = 0; r < 8; ++r)
+        for (int c = 0; c < 8; ++c)
+          local_buf[r * 8 + c] = data[(br + r) * N + (bc + c)];
+
+      dct_ptr(local_buf, 0, 64, scratch);
+
+      transpose8();
+      dct_ptr(local_buf, 0, 64, scratch);
+      transpose8();
+
+      for (int r = 0; r < 8; ++r)
+        for (int c = 0; c < 8; ++c)
+          data[(br + r) * N + (bc + c)] = local_buf[r * 8 + c];
     }
+  };
+
+  std::vector<std::jthread> pool;
+  pool.reserve(num_active);
+  for (int i = 0; i < num_active; ++i) {
+    int b_start = i * blocks_per_thread;
+    int b_end = std::min(b_start + blocks_per_thread, total_blocks);
+    pool.emplace_back(process_range, b_start, b_end);
   }
-
-  util::transpose_flattened(data, M, N);
-
-  // Col pass
-  {
-    std::vector<std::jthread> pool;
-
-    int num_active = std::min(num_threads, N);
-    for (int i = 0; i < num_active; ++i) {
-      int start = i * cols_per_thread * M;
-      int end = std::min((i + 1) * cols_per_thread, N) * M;
-
-      pool.emplace_back(batch_dct1, std::ref(data), M, start, end, M, dir);
-    }
-  }
-
-  util::transpose_flattened(data, N, M);
 }
 
 constexpr std::array<std::array<int, 8>, 8> std_luminance_table = {
