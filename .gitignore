@@ -5,7 +5,6 @@ benchmark
 equality_test
 
 # Generated / machine-specific
-Makefile
 .clangd
 pyrightconfig.json
 
