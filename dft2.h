@@ -9,10 +9,10 @@ namespace internal {
 
 enum class Dir { Forward = 1, Inverse = -1 };
 
-void dft2_seperated(std::vector<std::complex<float>> &data, int M, int N,
+void dft2_separated(std::vector<std::complex<float>> &data, int M, int N,
                     Dir dir = Dir::Forward);
 
-void dft2_seperated_threaded(std::vector<std::complex<float>> &data, int M,
+void dft2_separated_threaded(std::vector<std::complex<float>> &data, int M,
                              int N, Dir dir = Dir::Forward);
 
 [[deprecated]]

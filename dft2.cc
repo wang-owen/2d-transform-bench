@@ -47,7 +47,7 @@ void batch_dft1(std::vector<std::complex<float>> &data,
 
 } // namespace
 
-void dft2_seperated(std::vector<std::complex<float>> &data, int M, int N,
+void dft2_separated(std::vector<std::complex<float>> &data, int M, int N,
                     Dir dir) {
   std::vector<std::complex<float>> scratch(std::max(M, N));
 
@@ -83,7 +83,7 @@ void dft2_seperated(std::vector<std::complex<float>> &data, int M, int N,
   }
 }
 
-void dft2_seperated_threaded(std::vector<std::complex<float>> &data, int M,
+void dft2_separated_threaded(std::vector<std::complex<float>> &data, int M,
                              int N, Dir dir) {
 
   std::vector<std::complex<float>> table(N);
@@ -142,7 +142,7 @@ void dft2_seperated_threaded(std::vector<std::complex<float>> &data, int M,
   }
 }
 
-[[deprecated("use dft2_seperated instead")]]
+[[deprecated("use dft2_separated instead")]]
 void dft2(std::vector<std::complex<float>> &data, int M, int N, Dir dir) {
   const int direction = static_cast<int>(dir);
   const float scale = direction == 1 ? 1.0f : 1.0f / (M * N);
@@ -193,9 +193,9 @@ void transform(unsigned char *data, int width, int height, float quality,
   }
 
   if (threaded) {
-    internal::dft2_seperated_threaded(img, M, N, internal::Dir::Forward);
+    internal::dft2_separated_threaded(img, M, N, internal::Dir::Forward);
   } else {
-    internal::dft2_seperated(img, M, N, internal::Dir::Forward);
+    internal::dft2_separated(img, M, N, internal::Dir::Forward);
   }
 
   const auto dc = img[0];
@@ -225,9 +225,9 @@ void transform(unsigned char *data, int width, int height, float quality,
   img[0] = dc;
 
   if (threaded) {
-    internal::dft2_seperated_threaded(img, M, N, internal::Dir::Inverse);
+    internal::dft2_separated_threaded(img, M, N, internal::Dir::Inverse);
   } else {
-    internal::dft2_seperated(img, M, N, internal::Dir::Inverse);
+    internal::dft2_separated(img, M, N, internal::Dir::Inverse);
   }
 
   for (int y = 0; y < height; ++y) {
