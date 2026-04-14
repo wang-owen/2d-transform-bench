@@ -11,86 +11,105 @@
 
 constexpr int GRAYSCALE = 1;
 
+enum class Algorithm { DFT, FFT, DCT };
+
 int main(int argc, char *argv[]) {
-  const std::string usage = std::format(
-      "usage: {} --dft|--fft [iter|recur]|--dct <input> <output> [quality]\n"
-      "  --fft defaults to iter if method is omitted\n"
-      "  quality: [0, 1] for DFT/FFT, unrestricted for DCT\n",
-      argv[0]);
+  const std::string usage =
+      std::format("usage: {} [-t] --dft|--fft|--dct <input> "
+                  "<output> [quality]\n"
+                  "  -t: run transform using multiple threads\n"
+                  "  quality: [0, 1] for DFT/FFT, unrestricted for DCT\n",
+                  argv[0]);
 
-  if (argc < 4) {
-    std::cerr << usage;
-    exit(1);
-  }
+  bool threaded = false;
+  bool has_algorithm = false;
+  Algorithm algorithm = Algorithm::DFT;
 
-  const std::string_view algorithm = argv[1];
+  int pos = 1;
+  while (pos < argc) {
+    const std::string_view arg = argv[pos];
 
-  // Resolve FFT method and determine where positional args start.
-  auto fft_method = fft2::internal::Method::ITER;
-  int pos = 2;
-  if (algorithm == "--fft" && pos < argc) {
-    const std::string_view method = argv[pos];
-    if (method == "iter") {
-      fft_method = fft2::internal::Method::ITER;
+    if (arg == "-t") {
+      threaded = true;
       ++pos;
-    } else if (method == "recur") {
-      fft_method = fft2::internal::Method::RECUR;
-      ++pos;
+      continue;
     }
+
+    if (arg == "--dft" || arg == "--fft" || arg == "--dct") {
+      if (has_algorithm) {
+        std::cerr << "multiple algorithms specified\n";
+        std::cerr << usage;
+        return 1;
+      }
+
+      has_algorithm = true;
+      if (arg == "--dft") {
+        algorithm = Algorithm::DFT;
+      } else if (arg == "--fft") {
+        algorithm = Algorithm::FFT;
+      } else {
+        algorithm = Algorithm::DCT;
+      }
+
+      ++pos;
+      continue;
+    }
+
+    break;
   }
 
-  if (pos + 2 > argc || pos + 3 < argc) {
+  if (!has_algorithm) {
+    std::cerr << "missing algorithm flag\n";
     std::cerr << usage;
-    exit(1);
+    return 1;
+  }
+
+  const int remaining = argc - pos;
+  if (remaining != 2 && remaining != 3) {
+    std::cerr << usage;
+    return 1;
   }
 
   const char *input_path = argv[pos];
   const char *output_path = argv[pos + 1];
 
-  float quality = -1;
-  if (pos + 2 < argc) {
+  float quality = algorithm == Algorithm::DCT ? 1.0f : 0.5f;
+  if (remaining == 3) {
     try {
-      quality = std::stod(argv[pos + 2]);
-    } catch (const std::invalid_argument &e) {
+      quality = std::stof(argv[pos + 2]);
+    } catch (const std::exception &e) {
       std::cerr << e.what() << '\n';
       std::cerr << usage;
-      exit(1);
+      return 1;
     }
   }
 
-  if (algorithm != "--dct" && quality != -1 && (quality < 0 || quality > 1)) {
+  if (algorithm != Algorithm::DCT && (quality < 0 || quality > 1)) {
     std::cerr << "quality must be in [0, 1] for non-DCT transforms\n";
     std::cerr << usage;
-    exit(1);
-  }
-
-  if (quality == -1) {
-    quality = algorithm == "--dct" ? 1.0f : 0.5f;
+    return 1;
   }
 
   int width, height, channels;
   unsigned char *data =
       stbi_load(input_path, &width, &height, &channels, GRAYSCALE);
 
-  if (data == nullptr) {
+  if (data == nullptr || width == 0 || height == 0) {
     std::cerr << "Failed to open image at " << input_path << '\n';
-    exit(1);
+    return 1;
   }
 
-  if (algorithm == "--dft") {
-    dft2::transform(data, width, height, quality);
-  } else if (algorithm == "--fft") {
-    fft2::transform(data, width, height, quality, fft_method);
-  } else if (algorithm == "--dct") {
-    dct2::transform(data, width, height, quality);
+  if (algorithm == Algorithm::DFT) {
+    dft2::transform(data, width, height, quality, threaded);
+  } else if (algorithm == Algorithm::FFT) {
+    fft2::transform(data, width, height, quality, threaded);
   } else {
-    std::cerr << "unknown algorithm: " << algorithm << '\n';
-    std::cerr << usage;
-    stbi_image_free(data);
-    exit(1);
+    dct2::transform(data, width, height, quality, threaded);
   }
 
   stbi_write_png(output_path, width, height, GRAYSCALE, data, width);
 
   stbi_image_free(data);
+
+  return 0;
 }
