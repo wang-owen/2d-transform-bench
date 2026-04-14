@@ -5,6 +5,7 @@
 #include <array>
 #include <cassert>
 #include <cmath>
+#include <thread>
 
 namespace dct2 {
 
@@ -90,6 +91,21 @@ void idct1_impl(std::vector<float> &data, int start, int length,
   }
 }
 
+void batch_dct1(std::vector<float> &data, int length, int start, int end,
+                int stride, Dir dir) {
+  std::vector<float> scratch(length);
+
+  if (dir == Dir::Forward) {
+    for (int i = start; i < end; i += stride) {
+      dct1_impl(data, i, length, scratch);
+    }
+  } else {
+    for (int i = start; i < end; i += stride) {
+      idct1_impl(data, i, length, scratch);
+    }
+  }
+}
+
 } // namespace
 
 void dct2(std::vector<float> &data, int M, int N, Dir dir) {
@@ -105,6 +121,42 @@ void dct2(std::vector<float> &data, int M, int N, Dir dir) {
 
   for (int x = 0; x < N; ++x) {
     dct_ptr(data, x * M, M, scratch);
+  }
+
+  util::transpose_flattened(data, N, M);
+}
+
+void dct2_threaded(std::vector<float> &data, int M, int N, Dir dir) {
+  int num_threads = std::max(1u, std::thread::hardware_concurrency());
+  int rows_per_thread = std::ceil(1.0 * M / num_threads);
+  int cols_per_thread = std::ceil(1.0 * N / num_threads);
+
+  // Row pass
+  {
+    std::vector<std::jthread> pool;
+
+    int num_active = std::min(num_threads, M);
+    for (int i = 0; i < num_active; ++i) {
+      int start = i * rows_per_thread * N;
+      int end = std::min((i + 1) * rows_per_thread, M) * N;
+
+      pool.emplace_back(batch_dct1, std::ref(data), N, start, end, N, dir);
+    }
+  }
+
+  util::transpose_flattened(data, M, N);
+
+  // Col pass
+  {
+    std::vector<std::jthread> pool;
+
+    int num_active = std::min(num_threads, N);
+    for (int i = 0; i < num_active; ++i) {
+      int start = i * cols_per_thread * M;
+      int end = std::min((i + 1) * cols_per_thread, N) * M;
+
+      pool.emplace_back(batch_dct1, std::ref(data), M, start, end, M, dir);
+    }
   }
 
   util::transpose_flattened(data, N, M);
@@ -139,7 +191,8 @@ void dequantize(std::vector<float> &data, int M, int N, float quality) {
 
 } // namespace internal
 
-void transform(unsigned char *data, int width, int height, float quality) {
+void transform(unsigned char *data, int width, int height, float quality,
+               bool threaded) {
   const int M = ((height + 7) / 8) * 8;
   const int N = ((width + 7) / 8) * 8;
 
@@ -150,13 +203,21 @@ void transform(unsigned char *data, int width, int height, float quality) {
     }
   }
 
-  internal::dct2(img, M, N, internal::Dir::Forward);
+  if (threaded) {
+    internal::dct2_threaded(img, M, N, internal::Dir::Forward);
+  } else {
+    internal::dct2(img, M, N, internal::Dir::Forward);
+  }
 
   internal::quantize(img, M, N, quality);
 
   internal::dequantize(img, M, N, quality);
 
-  internal::dct2(img, M, N, internal::Dir::Inverse);
+  if (threaded) {
+    internal::dct2_threaded(img, M, N, internal::Dir::Inverse);
+  } else {
+    internal::dct2(img, M, N, internal::Dir::Inverse);
+  }
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {

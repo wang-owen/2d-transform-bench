@@ -4,7 +4,9 @@
 #include <algorithm>
 #include <bit>
 #include <cmath>
+#include <mutex>
 #include <numbers>
+#include <thread>
 #include <utility>
 
 namespace fft2 {
@@ -19,6 +21,11 @@ struct TwiddleCache {
   std::vector<std::vector<std::complex<float>>> inverse;
 };
 
+std::mutex &twiddle_cache_mutex() {
+  static std::mutex m;
+  return m;
+}
+
 TwiddleCache &twiddle_cache() {
   static TwiddleCache cache;
   return cache;
@@ -27,6 +34,7 @@ TwiddleCache &twiddle_cache() {
 int log2_pow2(int n) { return std::countr_zero(static_cast<unsigned int>(n)); }
 
 void ensure_twiddles(int max_size) {
+  std::lock_guard<std::mutex> lock(twiddle_cache_mutex());
   auto &cache = twiddle_cache();
   if (max_size <= cache.max_size) {
     return;
@@ -126,6 +134,14 @@ void fft_iter_impl(std::vector<std::complex<float>> &data, int start, int N,
   bit_reversal(data, N, start);
 }
 
+void batch_fft1(std::vector<std::complex<float>> &data, int length, int start,
+                int end, int stride, Dir dir) {
+  std::vector<std::complex<float>> scratch(length);
+  for (int i = start; i < end; i += stride) {
+    fft_iter_impl(data, i, length, dir);
+  }
+}
+
 } // namespace
 
 void fft_recur(std::vector<std::complex<float>> &data, int M, int N, Dir dir) {
@@ -165,10 +181,49 @@ void fft_iter(std::vector<std::complex<float>> &data, int M, int N, Dir dir) {
   util::transpose_flattened(data, N, M);
 }
 
+void fft_threaded(std::vector<std::complex<float>> &data, int M, int N,
+                  Dir dir) {
+  ensure_twiddles(std::max(M, N));
+
+  int num_threads = std::max(1u, std::thread::hardware_concurrency());
+  int rows_per_thread = std::ceil(1.0 * M / num_threads);
+  int cols_per_thread = std::ceil(1.0 * N / num_threads);
+
+  // Row pass
+  {
+    std::vector<std::jthread> pool;
+
+    int num_active = std::min(num_threads, M);
+    for (int i = 0; i < num_active; ++i) {
+      int start = i * rows_per_thread * N;
+      int end = std::min((i + 1) * rows_per_thread, M) * N;
+
+      pool.emplace_back(batch_fft1, std::ref(data), N, start, end, N, dir);
+    }
+  }
+
+  util::transpose_flattened(data, M, N);
+
+  // Col pass
+  {
+    std::vector<std::jthread> pool;
+
+    int num_active = std::min(num_threads, N);
+    for (int i = 0; i < num_active; ++i) {
+      int start = i * cols_per_thread * M;
+      int end = std::min((i + 1) * cols_per_thread, N) * M;
+
+      pool.emplace_back(batch_fft1, std::ref(data), M, start, end, M, dir);
+    }
+  }
+
+  util::transpose_flattened(data, N, M);
+}
+
 } // namespace internal
 
 void transform(unsigned char *data, int width, int height, float quality,
-               internal::Method method) {
+               bool threaded) {
   const int M = std::bit_ceil(static_cast<unsigned int>(height));
   const int N = std::bit_ceil(static_cast<unsigned int>(width));
 
@@ -179,10 +234,10 @@ void transform(unsigned char *data, int width, int height, float quality,
     }
   }
 
-  if (method == internal::Method::ITER) {
-    internal::fft_iter(img, M, N, internal::Dir::Forward);
+  if (threaded) {
+    internal::fft_threaded(img, M, N, internal::Dir::Forward);
   } else {
-    internal::fft_recur(img, M, N, internal::Dir::Forward);
+    internal::fft_iter(img, M, N, internal::Dir::Forward);
   }
 
   std::vector<float> mags;
@@ -203,10 +258,10 @@ void transform(unsigned char *data, int width, int height, float quality,
     }
   }
 
-  if (method == internal::Method::ITER) {
-    internal::fft_iter(img, M, N, internal::Dir::Inverse);
+  if (threaded) {
+    internal::fft_threaded(img, M, N, internal::Dir::Inverse);
   } else {
-    internal::fft_recur(img, M, N, internal::Dir::Inverse);
+    internal::fft_iter(img, M, N, internal::Dir::Inverse);
   }
 
   for (int y = 0; y < height; ++y) {

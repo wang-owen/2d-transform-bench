@@ -2,7 +2,10 @@
 #include "util.h"
 
 #include <algorithm>
+#include <cmath>
+#include <complex>
 #include <numbers>
+#include <thread>
 
 namespace dft2 {
 
@@ -33,6 +36,15 @@ void dft1_impl(std::vector<std::complex<float>> &data,
   }
 }
 
+void batch_dft1(std::vector<std::complex<float>> &data,
+                std::vector<std::complex<float>> &table, int length, int start,
+                int end, int stride) {
+  std::vector<std::complex<float>> scratch(length);
+  for (int i = start; i < end; i += stride) {
+    dft1_impl(data, scratch, table, i, length);
+  }
+}
+
 } // namespace
 
 void dft2_seperated(std::vector<std::complex<float>> &data, int M, int N,
@@ -59,6 +71,65 @@ void dft2_seperated(std::vector<std::complex<float>> &data, int M, int N,
 
   for (int x = 0; x < N; ++x) {
     dft1_impl(data, scratch, table, x * M, M);
+  }
+
+  util::transpose_flattened(data, N, M);
+
+  if (dir == Dir::Forward) {
+    const float scale = 1.0f / (M * N);
+    for (auto &n : data) {
+      n *= scale;
+    }
+  }
+}
+
+void dft2_seperated_threaded(std::vector<std::complex<float>> &data, int M,
+                             int N, Dir dir) {
+
+  std::vector<std::complex<float>> table(N);
+  for (int k = 0; k < N; ++k) {
+    table[k] = std::exp(std::complex<float>(0, -static_cast<int>(dir) * 2.0f *
+                                                   k * std::numbers::pi / N));
+  }
+
+  int num_threads = std::max(1u, std::thread::hardware_concurrency());
+  int rows_per_thread = std::ceil(1.0 * M / num_threads);
+  int cols_per_thread = std::ceil(1.0 * N / num_threads);
+
+  // Row pass
+  {
+    std::vector<std::jthread> pool;
+
+    int num_active = std::min(num_threads, M);
+    for (int i = 0; i < num_active; ++i) {
+      int start = i * rows_per_thread * N;
+      int end = std::min((i + 1) * rows_per_thread, M) * N;
+
+      pool.emplace_back(batch_dft1, std::ref(data), std::ref(table), N, start,
+                        end, N);
+    }
+  }
+
+  table.resize(M);
+  for (int k = 0; k < M; ++k) {
+    table[k] = std::exp(std::complex<float>(0, -static_cast<int>(dir) * 2.0f *
+                                                   k * std::numbers::pi / M));
+  }
+
+  util::transpose_flattened(data, M, N);
+
+  // Col pass
+  {
+    std::vector<std::jthread> pool;
+
+    int num_active = std::min(num_threads, N);
+    for (int i = 0; i < num_active; ++i) {
+      int start = i * cols_per_thread * M;
+      int end = std::min((i + 1) * cols_per_thread, N) * M;
+
+      pool.emplace_back(batch_dft1, std::ref(data), std::ref(table), M, start,
+                        end, M);
+    }
   }
 
   util::transpose_flattened(data, N, M);
@@ -108,7 +179,8 @@ void dft2(std::vector<std::complex<float>> &data, int M, int N, Dir dir) {
 
 } // namespace internal
 
-void transform(unsigned char *data, int width, int height, float quality) {
+void transform(unsigned char *data, int width, int height, float quality,
+               bool threaded) {
   const int M = height;
   const int N = width;
 
@@ -120,7 +192,11 @@ void transform(unsigned char *data, int width, int height, float quality) {
     }
   }
 
-  internal::dft2_seperated(img, M, N, internal::Dir::Forward);
+  if (threaded) {
+    internal::dft2_seperated_threaded(img, M, N, internal::Dir::Forward);
+  } else {
+    internal::dft2_seperated(img, M, N, internal::Dir::Forward);
+  }
 
   const auto dc = img[0];
 
@@ -148,7 +224,11 @@ void transform(unsigned char *data, int width, int height, float quality) {
 
   img[0] = dc;
 
-  internal::dft2_seperated(img, M, N, internal::Dir::Inverse);
+  if (threaded) {
+    internal::dft2_seperated_threaded(img, M, N, internal::Dir::Inverse);
+  } else {
+    internal::dft2_seperated(img, M, N, internal::Dir::Inverse);
+  }
 
   for (int y = 0; y < height; ++y) {
     for (int x = 0; x < width; ++x) {
