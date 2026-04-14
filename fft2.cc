@@ -15,6 +15,8 @@ namespace internal {
 
 namespace {
 
+// Precomputed twiddle factors indexed by log2(size), so twiddles for a
+// butterfly of size N are at index log2(N). Each entry holds N/2 factors.
 struct TwiddleCache {
   int max_size = 1;
   std::vector<std::vector<std::complex<float>>> forward;
@@ -33,6 +35,8 @@ TwiddleCache &twiddle_cache() {
 
 int log2_pow2(int n) { return std::countr_zero(static_cast<unsigned int>(n)); }
 
+// Lazily grows the twiddle cache to cover all butterfly sizes up to the next
+// power of 2 >= max_size. Protected by a mutex for thread-safe first access.
 void ensure_twiddles(int max_size) {
   std::lock_guard<std::mutex> lock(twiddle_cache_mutex());
   auto &cache = twiddle_cache();
@@ -70,6 +74,9 @@ const std::vector<std::complex<float>> &twiddles_for_size(int size, Dir dir) {
   return dir == Dir::Forward ? cache.forward[lg] : cache.inverse[lg];
 }
 
+// Iterative bit-reversal permutation. For each index i, incrementally computes
+// its bit-reversed counterpart j by flipping bits from the MSB down. Elements
+// are swapped only when i < j to avoid swapping a pair twice.
 void bit_reversal(std::vector<std::complex<float>> &a, int length, int start) {
   int j = 0;
   for (int i = 1; i < length; i++) {
@@ -86,6 +93,12 @@ void bit_reversal(std::vector<std::complex<float>> &a, int length, int start) {
   }
 }
 
+// Recursive Decimation-In-Frequency (DIF) Cooley-Tukey butterfly.
+// At each level, the butterfly splits the input into two halves:
+//   even output (a + b) and odd output (a - b) * twiddle[n].
+// Recursion continues on both halves; the caller applies bit-reversal afterward
+// to restore natural output order. scale=0.5 per stage gives a total 1/N factor
+// for the inverse transform after log2(N) recursive levels.
 void fft_recur_impl(std::vector<std::complex<float>> &data, int direction,
                     int start, int N, Dir dir, float scale) {
   if (N <= 1) {
@@ -108,6 +121,10 @@ void fft_recur_impl(std::vector<std::complex<float>> &data, int direction,
   fft_recur_impl(data, direction, start + (N / 2), N / 2, dir, scale);
 }
 
+// Iterative Decimation-In-Frequency (DIF) FFT. Processes butterfly stages from
+// the largest size down to 2, then applies bit-reversal to produce natural-order
+// output. For the inverse transform, scale=0.5 is applied at each of log2(N)
+// stages, giving a cumulative factor of 1/N without a separate normalisation pass.
 void fft_iter_impl(std::vector<std::complex<float>> &data, int start, int N,
                    Dir dir) {
   const int direction = static_cast<int>(dir);
@@ -189,7 +206,7 @@ void fft_threaded(std::vector<std::complex<float>> &data, int M, int N,
   int rows_per_thread = std::ceil(1.0 * M / num_threads);
   int cols_per_thread = std::ceil(1.0 * N / num_threads);
 
-  // Row pass
+  // Row pass. Scoped block ensures all jthreads join before the transpose.
   {
     std::vector<std::jthread> pool;
 
@@ -204,7 +221,7 @@ void fft_threaded(std::vector<std::complex<float>> &data, int M, int N,
 
   util::transpose_flattened(data, M, N);
 
-  // Col pass
+  // Col pass (operates on transposed data so memory access is contiguous).
   {
     std::vector<std::jthread> pool;
 

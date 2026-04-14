@@ -132,6 +132,9 @@ int main(int argc, char *argv[]) {
     auto complex_data = generate_data_complex(N);
     auto real_data = generate_data_real(N);
 
+    // Run counts scale inversely with algorithmic complexity so each benchmark
+    // point takes roughly the same wall-clock time regardless of N.
+    // DFT/DCT use O(N^4) scaling; FFT uses O(N^2 * log N) scaling.
     int dft_dct_runs = std::max(1, static_cast<int>(50.0f * pow(64.0f / N, 4)));
     int fft_runs =
         std::max(1, static_cast<int>(50.0f * (64.0f * 64.0f * log(64.0f)) /

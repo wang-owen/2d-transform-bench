@@ -13,6 +13,8 @@ namespace internal {
 
 namespace {
 
+// COS_TABLE[k][n] = cos(π * k * (2n + 1) / 16): the DCT-II basis values for an
+// 8-point transform. Row k is the k-th frequency's basis vector over 8 samples.
 constexpr std::array<std::array<float, 8>, 8> COS_TABLE = {
     {{1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0, 1.0},
      {0.980785, 0.83147, 0.55557, 0.19509, -0.19509, -0.55557, -0.83147,
@@ -33,6 +35,10 @@ constexpr std::array<std::array<float, 8>, 8> COS_TABLE = {
 constexpr float C_0 = 0.353553f; // sqrt(1.0f / N);
 constexpr float C_k = 0.5f;      // sqrt(2.0f / N);
 
+// Forward DCT on each 8-element block within [start, start+length).
+// scratch holds a copy of the input so in-place writes don't corrupt reads.
+// blockIdx tracks which 8-element block within the row we're processing;
+// blockIdx * 8 is its offset into the scratch buffer.
 void dct1_impl(std::vector<float> &data, int start, int length,
                std::vector<float> &scratch) {
   assert(length % 8 == 0);
@@ -46,12 +52,14 @@ void dct1_impl(std::vector<float> &data, int start, int length,
 
   int blockIdx = 0;
   for (int s = start; s < start + length; s += 8) {
+    // DC coefficient (k=0) uses C_0 = sqrt(1/N) normalisation.
     data[s] = 0;
     for (int n = 0; n < N; ++n) {
       data[s] += scratch[blockIdx * 8 + n] * COS_TABLE[0][n];
     }
     data[s] *= C_0;
 
+    // AC coefficients (k=1..7) use C_k = sqrt(2/N) normalisation.
     for (int k = 1; k < N; ++k) {
       int i = s + k;
       data[i] = 0;
@@ -125,6 +133,8 @@ void dct2_threaded(std::vector<float> &data, int M, int N, Dir dir) {
     std::vector<float> local_buf(64);
     std::vector<float> scratch(64);
 
+    // Transpose the 8×8 local buffer in-place so the column pass can
+    // reuse dct1_impl, which operates on contiguous rows.
     auto transpose8 = [&]() {
       for (int r = 0; r < 8; ++r)
         for (int c = r + 1; c < 8; ++c)
@@ -132,6 +142,7 @@ void dct2_threaded(std::vector<float> &data, int M, int N, Dir dir) {
     };
 
     for (int b = b_start; b < b_end; ++b) {
+      // Convert flat block index to top-left pixel coordinates of the block.
       const int br = (b / blocks_per_row) * 8;
       const int bc = (b % blocks_per_row) * 8;
 
@@ -170,6 +181,10 @@ constexpr std::array<std::array<int, 8>, 8> std_luminance_table = {
      {{49, 64, 78, 87, 103, 121, 120, 101}},
      {{72, 92, 95, 98, 112, 100, 103, 99}}}};
 
+// Quantizes DCT coefficients using the JPEG standard luminance table scaled by
+// quality. Follows the IJG/libjpeg convention: quality ∈ [0,1] is mapped to a
+// q-value in [1,100], then to a scale factor S that multiplies each table
+// entry. Lower quality → larger step sizes → more aggressive rounding.
 void quantize(std::vector<float> &data, int M, int N, float quality) {
   float q = quality * 99.0f + 1.0f;
   float S = q < 50.0f ? 5000.0f / q : 200.0f - 2.0f * q;

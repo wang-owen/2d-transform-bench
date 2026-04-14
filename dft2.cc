@@ -20,6 +20,9 @@ void dft1_impl(std::vector<std::complex<float>> &data,
     scratch[i] = data[start + i];
   }
 
+  // For output bin k, we need twiddle factors table[0], table[k], table[2k], ...
+  // (mod N). Rather than computing (k*n) mod N with a multiply each iteration,
+  // idx is accumulated by adding ki=k and wrapping, which gives the same sequence.
   int ki = 0;
   for (int k = start; k < start + N; ++k) {
     std::complex<float> F = 0;
@@ -96,7 +99,8 @@ void dft2_separated_threaded(std::vector<std::complex<float>> &data, int M,
   int rows_per_thread = std::ceil(1.0 * M / num_threads);
   int cols_per_thread = std::ceil(1.0 * N / num_threads);
 
-  // Row pass
+  // Row pass. The scoped block ensures all jthreads are destroyed (and thus
+  // joined) before the transpose and column pass begin.
   {
     std::vector<std::jthread> pool;
 
@@ -118,7 +122,7 @@ void dft2_separated_threaded(std::vector<std::complex<float>> &data, int M,
 
   util::transpose_flattened(data, M, N);
 
-  // Col pass
+  // Col pass (operates on transposed data so memory access is contiguous).
   {
     std::vector<std::jthread> pool;
 
